@@ -3,6 +3,7 @@ import { Home, Map as MapIcon, PlusCircle, BarChart2, Bot, List, LogOut } from '
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { APP_CONFIG } from '@/lib/config';
+import { supabase } from '@/lib/supabase/client';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -10,6 +11,11 @@ function cn(...inputs: (string | undefined | null | false)[]) {
 
 export function Sidebar({ className }: { className?: string }) {
   const location = useLocation();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/auth';
+  };
 
   const navItems = [
     { name: 'Home', path: '/', icon: Home },
@@ -67,7 +73,10 @@ export function Sidebar({ className }: { className?: string }) {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <button className="flex w-full items-center px-4 py-3 text-sm font-medium text-text-secondary hover:bg-bg-elevated hover:text-text-primary rounded-md transition-colors">
+        <button 
+          onClick={handleSignOut}
+          className="flex w-full items-center px-4 py-3 text-sm font-medium text-text-secondary hover:bg-bg-elevated hover:text-text-primary rounded-md transition-colors"
+        >
           <LogOut className="mr-3 h-5 w-5" />
           Sign Out
         </button>

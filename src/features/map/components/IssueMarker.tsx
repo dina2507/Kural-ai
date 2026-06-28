@@ -3,9 +3,9 @@ import { AdvancedMarker } from '@vis.gl/react-google-maps';
 import { Issue } from '../../issues/types/issue.types';
 import { useMapStore } from '../../../store/mapStore';
 import { IssueInfoWindow } from './IssueInfoWindow';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
-export function IssueMarker({ issue, key }: { issue: Issue; key?: React.Key }) {
+export function IssueMarker({ issue }: { issue: Issue }) {
   const { selectedIssueId, setSelectedIssueId } = useMapStore();
   const isSelected = selectedIssueId === issue.id;
 

@@ -8,7 +8,8 @@ import { AgentStepList } from '@/features/report/components/AgentStepList';
 import { useGenerateDigest } from '@/features/agent/hooks/useGenerateDigest';
 import { DigestCard } from '@/features/agent/components/DigestCard';
 import { RefreshCw, Bot, FileText, Newspaper } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
+import { useIssues } from '@/features/issues/hooks/useIssues';
 
 export function AgentPage() {
   const { data: healthData, refetch: refetchHealth } = useHealthScore();
@@ -18,6 +19,10 @@ export function AgentPage() {
   const { mutate: generateDigest, isPending: isGeneratingDigest, data: digestData } = useGenerateDigest();
   const [selectedWard, setSelectedWard] = useState('Ward 76');
   
+  const { data: allIssues = [] } = useIssues();
+  const availableWards = [...new Set(allIssues.map((i: any) => i.ward).filter(Boolean))];
+  if (!availableWards.includes('Ward 76')) availableWards.unshift('Ward 76'); // default
+
   const score = healthData?.score ?? 0;
   let scoreColor = 'text-success';
   let scoreLabel = 'Healthy';
@@ -100,9 +105,9 @@ export function AgentPage() {
                  onChange={(e) => setSelectedWard(e.target.value)}
                  className="bg-bg-elevated border border-border rounded-lg px-4 py-2 text-sm text-text-primary focus:border-primary outline-none"
               >
-                 <option value="Ward 76">Ward 76</option>
-                 <option value="Ward 77">Ward 77</option>
-                 <option value="Ward 120">Ward 120</option>
+                 {availableWards.map(ward => (
+                   <option key={ward} value={ward}>{ward}</option>
+                 ))}
               </select>
               <select 
                  className="bg-bg-elevated border border-border rounded-lg px-4 py-2 text-sm text-text-primary focus:border-primary outline-none"

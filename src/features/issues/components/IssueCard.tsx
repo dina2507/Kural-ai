@@ -2,9 +2,9 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Issue } from '../types/issue.types';
 import { MapPin, Users, Activity } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
-export function IssueCard({ issue, key }: { issue: Issue, key?: React.Key }) {
+export function IssueCard({ issue }: { issue: Issue }) {
   const getSeverityColor = (severity: number) => {
     if (severity >= 9) return 'bg-danger';
     if (severity >= 7) return 'bg-warning';
@@ -23,7 +23,7 @@ export function IssueCard({ issue, key }: { issue: Issue, key?: React.Key }) {
         <div className="flex justify-between items-start mb-2">
           <div className="flex gap-2">
             <span className="px-2 py-1 rounded text-xs font-bold uppercase tracking-wider bg-bg-elevated border border-border text-text-primary">
-              {issue.category.replace('_', ' ')}
+              {issue.category.replaceAll('_', ' ')}
             </span>
             <span className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${issue.severity >= 8 ? 'bg-danger-subtle text-danger' : issue.severity >= 5 ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'}`}>
               Sev {issue.severity}

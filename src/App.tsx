@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
+import { supabase } from '@/lib/supabase/client';
 import { AppLayout } from '@/shared/components/AppLayout';
 import { LandingPage } from '@/pages/LandingPage';
 import { MapPage } from '@/pages/MapPage';
@@ -18,10 +19,23 @@ import { IssueDetailPage } from '@/pages/IssueDetailPage';
 import { AuthPage } from '@/pages/AuthPage';
 import { Toaster } from 'sonner';
 
-// Simple protected route wrapper for Phase 1
-// We can expand this with actual session checking later
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  // For Phase 1 we will just pass through or you can mock authentication
+  const [session, setSession] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session ? 'authenticated' : 'unauthenticated');
+    });
+  }, []);
+
+  if (session === 'loading') {
+    return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-secondary">Loading...</div>;
+  }
+
+  if (session === 'unauthenticated') {
+    return <Navigate to="/auth" replace />;
+  }
+
   return <>{children}</>;
 }
 

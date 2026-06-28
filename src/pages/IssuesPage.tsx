@@ -4,7 +4,7 @@ import { useIssues } from '@/features/issues/hooks/useIssues';
 import { IssueCard } from '@/features/issues/components/IssueCard';
 import { APP_CONFIG } from '@/lib/config';
 import { MapPin } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 
 export function IssuesPage() {
   const [filters, setFilters] = useState({
@@ -37,7 +37,7 @@ export function IssuesPage() {
         >
            <option value="">All Categories</option>
            {APP_CONFIG.issues.categories.map(cat => (
-             <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
+             <option key={cat} value={cat}>{cat.replaceAll('_', ' ')}</option>
            ))}
         </select>
         

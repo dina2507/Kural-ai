@@ -7,7 +7,7 @@ import { IssueMarker } from './IssueMarker';
 import { HeatmapLayer } from './HeatmapLayer';
 import { supabase } from '../../../lib/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function KuralMap() {
   const { filters } = useMapStore();

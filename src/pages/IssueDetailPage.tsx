@@ -10,12 +10,25 @@ import { ImageCarousel } from '@/features/issues/components/ImageCarousel';
 import { MapPin, ArrowLeft, Share2, Bot, ThumbsUp, Clock } from 'lucide-react';
 import { useUpvoteIssue } from '@/features/issues/hooks/useUpvoteIssue';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 export function IssueDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: issue, isLoading, error } = useIssue(id!);
   const { mutate: upvoteIssue, isPending: isUpvoting } = useUpvoteIssue();
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: issue.title, text: issue.description, url });
+      } catch (_) {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      toast.info('Link copied to clipboard.');
+    }
+  };
 
   if (isLoading) return <div className="p-8 text-center">Loading issue...</div>;
   if (error || !issue) return <div className="p-8 text-center text-danger">Issue not found</div>;
@@ -36,7 +49,7 @@ export function IssueDetailPage() {
              <ThumbsUp className="w-4 h-4" />
              <span>{issue.upvotes || 0} Upvotes</span>
           </button>
-          <button className="flex items-center gap-2 text-primary text-sm font-medium">
+          <button onClick={handleShare} className="flex items-center gap-2 text-primary text-sm font-medium">
             <Share2 className="w-4 h-4" />
             <span>Share</span>
           </button>
@@ -53,10 +66,10 @@ export function IssueDetailPage() {
                 Sev {issue.severity}
               </span>
               <span className="px-2 py-1 rounded text-xs font-bold uppercase tracking-wider bg-bg-surface border border-border text-text-primary">
-                {issue.category.replace('_', ' ')}
+                {issue.category.replaceAll('_', ' ')}
               </span>
               <span className="px-2 py-1 rounded text-xs font-bold uppercase tracking-wider bg-primary-subtle text-primary">
-                {issue.status.replace('_', ' ')}
+                {issue.status.replaceAll('_', ' ')}
               </span>
             </div>
             

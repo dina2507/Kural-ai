@@ -13,6 +13,36 @@ import { runDigestAgent } from './src/ai/agents/digestAgent.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+function mapIssue(row: any) {
+  if (!row) return row;
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    category: row.category,
+    severity: row.severity,
+    status: row.status,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    address: row.address || '',
+    ward: row.ward || 'Unknown Ward',
+    images: row.images || [],
+    resolutionImage: row.resolution_image || null,
+    aiTags: row.ai_tags || [],
+    aiAnalysis: row.ai_analysis || {},
+    confirmationCount: row.confirmation_count || 0,
+    viewCount: row.view_count || 0,
+    resolutionVerified: row.resolution_verified || null,
+    resolutionConfidence: row.resolution_confidence || null,
+    resolutionReasoning: row.resolution_reasoning || null,
+    reporterId: row.reporter_id || '',
+    upvotes: row.upvotes || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    resolvedAt: row.resolved_at || null,
+  };
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -143,7 +173,7 @@ async function startServer() {
       // returning issue
       return res.json({
         success: true,
-        data: issue,
+        data: mapIssue(issue),
         timestamp: new Date().toISOString()
       });
 
@@ -152,7 +182,7 @@ async function startServer() {
        return res.status(500).json({
          success: false,
          data: null,
-         error: error,
+         error: error instanceof Error ? error.message : String(error),
          timestamp: new Date().toISOString(),
        });
     }
@@ -188,7 +218,7 @@ async function startServer() {
       
       return res.json({
         success: true,
-        data: finalData,
+        data: finalData.map(mapIssue),
         timestamp: new Date().toISOString()
       });
     } catch(err) {
@@ -364,7 +394,7 @@ async function startServer() {
      }
   });
 
-  app.post('/api/issues/:id/upvote', async (req, res) => {
+   app.post('/api/issues/:id/upvote', async (req, res) => {
      try {
        const issueId = req.params.id;
        const supabase = createServerSupabaseClient();
@@ -377,7 +407,7 @@ async function startServer() {
            const mockIssue = ((global as any).mockIssues || []).find((i: any) => i.id === issueId);
            if (mockIssue) {
               mockIssue.upvotes = (mockIssue.upvotes || 0) + 1;
-              return res.json({ success: true, data: mockIssue, timestamp: new Date().toISOString() });
+              return res.json({ success: true, data: mapIssue(mockIssue), timestamp: new Date().toISOString() });
            }
          }
          
@@ -386,7 +416,7 @@ async function startServer() {
          if (!fetchError && issue) {
             const { data: updatedIssue, error: updateError } = await supabase.from('issues').update({ upvotes: (issue.upvotes || 0) + 1 }).eq('id', issueId).select().single();
             if (!updateError) {
-               return res.json({ success: true, data: updatedIssue, timestamp: new Date().toISOString() });
+               return res.json({ success: true, data: mapIssue(updatedIssue), timestamp: new Date().toISOString() });
             }
          }
          
@@ -395,7 +425,7 @@ async function startServer() {
        
        return res.json({
          success: true,
-         data: data,
+         data: mapIssue(data),
          timestamp: new Date().toISOString()
        });
      } catch(err) {
@@ -411,14 +441,14 @@ async function startServer() {
          if (error.code === 'PGRST205' || error.code === 'PGRST116' || error.code === '42P01') {
            const mockIssue = ((global as any).mockIssues || []).find((i: any) => i.id === req.params.id);
            if (!mockIssue) return res.status(404).json({ success: false, data: null, error: 'Issue not found', timestamp: new Date().toISOString() });
-           return res.json({ success: true, data: mockIssue, timestamp: new Date().toISOString() });
+           return res.json({ success: true, data: mapIssue(mockIssue), timestamp: new Date().toISOString() });
          }
          throw error;
        }
        
        return res.json({
          success: true,
-         data,
+         data: mapIssue(data),
          timestamp: new Date().toISOString()
        });
      } catch(err) {
@@ -563,11 +593,16 @@ async function startServer() {
        
        const { data: healthData, error: healthError } = await supabase.from('city_health_scores').select('score').order('created_at', { ascending: false }).limit(1).single();
        const healthScore = healthData?.score || 85;
+
+       const period = req.query.period as string || '30d';
+       const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
+       const since = new Date();
+       since.setDate(since.getDate() - days);
        
-       const { data: issues, error: issuesError } = await supabase.from('issues').select('*').is('deleted_at', null);
+       const { data: issues, error: issuesError } = await supabase.from('issues').select('*').is('deleted_at', null).gte('created_at', since.toISOString());
        let safeIssues = issues || [];
        if (issuesError && (issuesError.code === 'PGRST205' || issuesError.code === '42P01')) {
-          safeIssues = (global as any).mockIssues || [];
+          safeIssues = ((global as any).mockIssues || []).filter((i: any) => new Date(i.created_at) >= since);
        } else if (issuesError) {
           throw issuesError;
        }

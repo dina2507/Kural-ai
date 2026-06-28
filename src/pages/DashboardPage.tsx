@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { useDashboard } from '@/features/dashboard/hooks/useDashboard';
 import { MetricCard } from '@/features/dashboard/components/MetricCard';
@@ -8,7 +8,8 @@ import { WardComparison } from '@/features/dashboard/components/WardComparison';
 import { TopReporters } from '@/features/dashboard/components/TopReporters';
 
 export function DashboardPage() {
-  const { data, isLoading, error } = useDashboard();
+  const [period, setPeriod] = useState('30d');
+  const { data, isLoading, error } = useDashboard(period);
 
   if (isLoading) return <div className="p-8 text-center text-text-tertiary">Loading dashboard...</div>;
   if (error || !data) return <div className="p-8 text-center text-danger">Failed to load dashboard data</div>;
@@ -18,9 +19,12 @@ export function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8">
         <PageHeader title="City Dashboard" subtitle="Real-time analytics across all wards." />
         <div className="mt-4 sm:mt-0">
-          <select className="bg-bg-surface border border-border rounded-lg px-4 py-2 text-sm text-text-primary focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-            <option value="30d">Last 30 Days</option>
+          <select 
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="bg-bg-surface border border-border rounded-lg px-4 py-2 text-sm text-text-primary focus:border-primary focus:ring-1 focus:ring-primary outline-none">
             <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
             <option value="90d">Last 90 Days</option>
           </select>
         </div>

@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { AgentStepList } from './AgentStepList';
 import { useReportWizard } from '../hooks/useReportWizard';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { parseApiError } from '@/lib/utils/errorParser';
 
 export function StepAnalysis() {
@@ -79,8 +79,8 @@ export function StepAnalysis() {
                   <h4 className="font-bold text-warning mb-1">Similar issue found nearby</h4>
                   <p className="text-sm text-text-primary mb-3">A similar issue was reported recently. Do you want to merge this report?</p>
                   <div className="flex gap-3">
-                    <button className="px-3 py-1.5 bg-warning text-bg-base font-medium text-sm rounded hover:bg-opacity-90">Merge Report</button>
-                    <button className="px-3 py-1.5 border border-warning/50 text-warning font-medium text-sm rounded hover:bg-warning-subtle">Keep Separate</button>
+                    <button onClick={() => setStep(3)} className="px-3 py-1.5 bg-warning text-bg-base font-medium text-sm rounded hover:bg-opacity-90">Merge Report</button>
+                    <button onClick={() => setStep(3)} className="px-3 py-1.5 border border-warning/50 text-warning font-medium text-sm rounded hover:bg-warning-subtle">Keep Separate</button>
                   </div>
                 </div>
               </div>
@@ -89,7 +89,7 @@ export function StepAnalysis() {
             <div className="bg-bg-surface p-6 rounded-xl border border-primary/30 shadow-primary">
               <div className="flex justify-between items-start mb-4">
                 <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-primary-subtle text-primary">
-                  {analysis.category.replace('_', ' ')}
+                  {analysis.category.replaceAll('_', ' ')}
                 </span>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${analysis.severity >= 8 ? 'bg-danger-subtle text-danger' : analysis.severity >= 5 ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'}`}>
                   Severity {analysis.severity}/10
