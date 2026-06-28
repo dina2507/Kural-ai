@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CivicMindOutput } from '../../../ai/schemas/civicMindOutput.schema';
 import { toast } from 'sonner';
+import { parseApiError } from '@/lib/utils/errorParser';
 
 export function useRunCivicMind() {
   const queryClient = useQueryClient();
@@ -11,8 +12,8 @@ export function useRunCivicMind() {
         method: 'POST',
       });
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to run CivicMind');
+        const errorRes = await res.json();
+        throw new Error(parseApiError(errorRes.error, 'Failed to run CivicMind'));
       }
       const json = await res.json();
       return json.data;

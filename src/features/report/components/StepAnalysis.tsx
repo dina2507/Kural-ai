@@ -4,6 +4,7 @@ import { AgentStepList } from './AgentStepList';
 import { useReportWizard } from '../hooks/useReportWizard';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { parseApiError } from '@/lib/utils/errorParser';
 
 export function StepAnalysis() {
   const { imageFile, imagePreviewUrl, location, setAnalysis, analysis, setStep } = useReportWizard();
@@ -23,7 +24,7 @@ export function StepAnalysis() {
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Agent failed');
+        throw new Error(parseApiError(json.error, 'Agent failed'));
       }
       return json.data;
     },

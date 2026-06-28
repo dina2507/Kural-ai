@@ -5,6 +5,7 @@ import { Issue } from '../types/issue.types';
 import { AgentStepList } from '../../report/components/AgentStepList';
 import { ResolutionAgentOutput } from '../../../ai/schemas/resolutionOutput.schema';
 import { toast } from 'sonner';
+import { parseApiError } from '@/lib/utils/errorParser';
 
 export function ResolutionSection({ issue }: { issue: Issue }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +27,9 @@ export function ResolutionSection({ issue }: { issue: Issue }) {
         body: formData,
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || 'Resolution failed');
+      if (!res.ok || !json.success) {
+        throw new Error(parseApiError(json.error, 'Resolution failed'));
+      }
       return json.data as ResolutionAgentOutput;
     },
     onSuccess: (data) => {

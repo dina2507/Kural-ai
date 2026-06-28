@@ -45,7 +45,7 @@ export function IssueTimeline({ issueId }: { issueId: string }) {
     <div className="relative space-y-4 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
       {events.map((event: TimelineEvent, index: number) => {
         let Icon = Settings;
-        let borderColor = 'border-gray-500';
+        let borderColor = 'var(--border)';
         
         if (event.actor_type === 'ai_agent') {
           Icon = Bot;
@@ -59,7 +59,14 @@ export function IssueTimeline({ issueId }: { issueId: string }) {
         }
 
         const date = new Date(event.created_at);
-        const relativeTime = formatDistanceToNow(date, { addSuffix: true });
+        let relativeTime = 'recently';
+        try {
+          if (!isNaN(date.getTime())) {
+            relativeTime = formatDistanceToNow(date, { addSuffix: true });
+          }
+        } catch (e) {
+          console.error('Date parsing error', e);
+        }
 
         return (
           <motion.div 

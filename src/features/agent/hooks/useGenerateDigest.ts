@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { DigestAgentOutput } from '../../../ai/schemas/digestOutput.schema';
 import { toast } from 'sonner';
+import { parseApiError } from '@/lib/utils/errorParser';
 
 export function useGenerateDigest() {
   return useMutation({
@@ -14,7 +15,7 @@ export function useGenerateDigest() {
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Failed to generate digest');
+        throw new Error(parseApiError(err.error, 'Failed to generate digest'));
       }
       const json = await res.json();
       return json.data;

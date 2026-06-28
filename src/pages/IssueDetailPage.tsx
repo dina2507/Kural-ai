@@ -69,7 +69,15 @@ export function IssueDetailPage() {
               </div>
               <div className="flex items-center gap-2 text-text-secondary text-sm">
                 <Clock className="w-4 h-4 shrink-0" />
-                <span>Reported {issue.createdAt ? formatDistanceToNow(new Date(issue.createdAt), { addSuffix: true }) : 'recently'}</span>
+                <span>Reported {(() => {
+                  try {
+                    const date = new Date(issue.createdAt);
+                    if (!isNaN(date.getTime())) {
+                      return formatDistanceToNow(date, { addSuffix: true });
+                    }
+                  } catch (e) {}
+                  return 'recently';
+                })()}</span>
               </div>
             </div>
 
@@ -107,7 +115,9 @@ export function IssueDetailPage() {
         <div className="lg:col-span-5 flex flex-col gap-6">
           <IssueProgressIndicator status={issue.status} />
 
-          <StaticMapPreview latitude={issue.latitude} longitude={issue.longitude} />
+          {(issue.latitude !== undefined && issue.longitude !== undefined) && (
+            <StaticMapPreview latitude={issue.latitude} longitude={issue.longitude} />
+          )}
 
           <VerificationPanel issue={issue} />
           

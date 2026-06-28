@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { parseApiError } from '@/lib/utils/errorParser';
 
 export function useUpvoteIssue() {
   const queryClient = useQueryClient();
@@ -11,7 +12,7 @@ export function useUpvoteIssue() {
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || 'Failed to upvote issue');
+        throw new Error(parseApiError(error.error, 'Failed to upvote issue'));
       }
       return res.json();
     },

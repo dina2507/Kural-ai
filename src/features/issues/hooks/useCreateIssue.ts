@@ -1,6 +1,7 @@
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Issue } from '../types/issue.types';
 import { toast } from 'sonner';
+import { parseApiError } from '@/lib/utils/errorParser';
 
 export function useCreateIssue() {
   const queryClient = useQueryClient();
@@ -14,8 +15,8 @@ export function useCreateIssue() {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to create issue');
+        const errRes = await res.json();
+        throw new Error(parseApiError(errRes.error, 'Failed to create issue'));
       }
       
       const json = await res.json();

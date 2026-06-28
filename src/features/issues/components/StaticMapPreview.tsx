@@ -8,7 +8,14 @@ interface StaticMapPreviewProps {
 }
 
 export function StaticMapPreview({ latitude, longitude }: StaticMapPreviewProps) {
-  const position = { lat: latitude, lng: longitude };
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (isNaN(lat) || isNaN(lng)) {
+    return null;
+  }
+
+  const position = { lat, lng };
   
   return (
     <div className="bg-bg-surface p-6 rounded-xl border border-border">
@@ -17,7 +24,7 @@ export function StaticMapPreview({ latitude, longitude }: StaticMapPreviewProps)
         Location Preview
       </h3>
       <div className="w-full h-48 rounded-lg overflow-hidden border border-border bg-bg-elevated">
-        <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''} version="weekly">
+        <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''} libraries={['visualization', 'marker']}>
           <Map
             defaultCenter={position}
             defaultZoom={15}
