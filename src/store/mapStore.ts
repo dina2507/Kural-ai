@@ -4,6 +4,7 @@ export interface MapFilters {
   category: string[];
   severityMin: number;
   status: string[];
+  viewMode: 'pins' | 'heatmap';
 }
 
 interface MapState {
@@ -18,6 +19,7 @@ const initialFilters: MapFilters = {
   category: [],
   severityMin: 1,
   status: [],
+  viewMode: 'pins',
 };
 
 export const useMapStore = create<MapState>((set) => ({

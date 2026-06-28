@@ -27,6 +27,24 @@ export function MapFilterPanel() {
       
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         <div>
+          <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wider mb-3">View Mode</h3>
+          <div className="flex gap-2 p-1 bg-bg-elevated rounded-lg">
+            <button 
+              onClick={() => setFilter('viewMode', 'pins')}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${filters.viewMode === 'pins' ? 'bg-bg-surface text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+            >
+              Issue Pins
+            </button>
+            <button 
+              onClick={() => setFilter('viewMode', 'heatmap')}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${filters.viewMode === 'heatmap' ? 'bg-bg-surface text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+            >
+              Risk Heatmap
+            </button>
+          </div>
+        </div>
+
+        <div>
           <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wider mb-3">Severity (Min: {filters.severityMin})</h3>
           <input 
             type="range" 

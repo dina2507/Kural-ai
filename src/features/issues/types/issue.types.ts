@@ -26,7 +26,9 @@ export interface Issue {
   viewCount: number;
   resolutionVerified: boolean | null;
   resolutionConfidence: number | null;
+  resolutionReasoning: string | null;
   reporterId: string;
+  upvotes: number;
   createdAt: string;
   updatedAt: string;
   resolvedAt: string | null;

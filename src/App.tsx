@@ -16,6 +16,7 @@ import { AgentPage } from '@/pages/AgentPage';
 import { IssuesPage } from '@/pages/IssuesPage';
 import { IssueDetailPage } from '@/pages/IssueDetailPage';
 import { AuthPage } from '@/pages/AuthPage';
+import { Toaster } from 'sonner';
 
 // Simple protected route wrapper for Phase 1
 // We can expand this with actual session checking later
@@ -42,6 +43,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      <Toaster theme="dark" position="bottom-right" />
     </QueryClientProvider>
   );
 }
+

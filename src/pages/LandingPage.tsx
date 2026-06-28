@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { APP_CONFIG } from '@/lib/config';
+import { HealthScoreRing } from '@/features/dashboard/components/HealthScoreRing';
+import { useDashboard } from '@/features/dashboard/hooks/useDashboard';
+import { useEffect, useState } from 'react';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 16 },
@@ -18,20 +21,10 @@ function LiveIssueFeed() {
   const { data: issues, isLoading, error } = useQuery({
     queryKey: ['liveIssues'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('issues')
-        .select('id, title, category, created_at')
-        .order('created_at', { ascending: false })
-        .limit(5);
-        
-      if (error) {
-        if (error.code === '42P01') {
-          // Table doesn't exist yet, return empty
-          return [];
-        }
-        throw error;
-      }
-      return data || [];
+      const res = await fetch('/api/issues');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      return json.data.slice(0, 5) || [];
     }
   });
 
@@ -77,21 +70,39 @@ function LiveIssueFeed() {
 }
 
 export function LandingPage() {
+  const { data: dashboardData } = useDashboard();
+  const [activeIssues, setActiveIssues] = useState(0);
+
+  useEffect(() => {
+     if (dashboardData) {
+        setActiveIssues(dashboardData.totalOpen);
+     }
+  }, [dashboardData]);
+
+  useEffect(() => {
+     const channel = supabase.channel('landing-issues')
+       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'issues' }, () => {
+          setActiveIssues(prev => prev + 1);
+       })
+       .subscribe();
+     return () => { supabase.removeChannel(channel); };
+  }, []);
+
   return (
     <motion.div 
-      className="flex flex-col gap-12"
+      className="flex flex-col gap-12 pb-20"
       variants={staggerContainer}
       initial="initial"
       animate="animate"
     >
       {/* Hero Section */}
       <motion.section variants={fadeInUp} className="text-center py-12 md:py-24">
-        <div className="w-32 h-32 mx-auto rounded-full border-4 border-primary/20 flex items-center justify-center mb-8 relative">
-          {/* Placeholder for Pulse Ring */}
-          <div className="w-24 h-24 bg-primary rounded-full opacity-20 absolute animate-pulse"></div>
-          <span className="text-4xl font-black text-primary">K</span>
-        </div>
-        <h1 className="text-5xl md:text-6xl font-black text-text-primary tracking-tight mb-4">
+        <HealthScoreRing 
+           score={dashboardData?.healthScore || 85} 
+           issueCount={activeIssues} 
+        />
+        
+        <h1 className="text-5xl md:text-6xl font-black text-text-primary tracking-tight mb-4 mt-8">
           {APP_CONFIG.name}
         </h1>
         <p className="text-xl text-text-secondary max-w-2xl mx-auto mb-10">
@@ -117,15 +128,17 @@ export function LandingPage() {
       <motion.section variants={fadeInUp} className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-bg-surface p-6 rounded-xl border border-border text-center">
           <p className="text-sm font-medium text-text-secondary mb-2">Active Issues</p>
-          <p className="text-4xl font-mono font-black text-text-primary">—</p>
+          <p className="text-4xl font-mono font-black text-text-primary">{activeIssues || '—'}</p>
         </div>
         <div className="bg-bg-surface p-6 rounded-xl border border-border text-center">
           <p className="text-sm font-medium text-text-secondary mb-2">Resolved This Week</p>
-          <p className="text-4xl font-mono font-black text-success">—</p>
+          <p className="text-4xl font-mono font-black text-success">{dashboardData?.totalResolved || '—'}</p>
         </div>
         <div className="bg-bg-surface p-6 rounded-xl border border-border text-center">
           <p className="text-sm font-medium text-text-secondary mb-2">City Health Score</p>
-          <p className="text-4xl font-mono font-black text-health-good">—</p>
+          <p className={`text-4xl font-mono font-black ${dashboardData?.healthScore && dashboardData.healthScore >= 80 ? 'text-success' : dashboardData?.healthScore && dashboardData.healthScore >= 50 ? 'text-warning' : 'text-danger'}`}>
+             {dashboardData?.healthScore || '—'}
+          </p>
         </div>
       </motion.section>
 

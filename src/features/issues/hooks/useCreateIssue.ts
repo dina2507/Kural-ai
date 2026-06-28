@@ -1,5 +1,6 @@
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { Issue } from '../types/issue.types';
+import { toast } from 'sonner';
 
 export function useCreateIssue() {
   const queryClient = useQueryClient();
@@ -22,6 +23,11 @@ export function useCreateIssue() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['issues'] });
+      toast.success('Issue reported. Community will verify it shortly.');
     },
+    onError: (err) => {
+       toast.error(err.message || 'Failed to submit issue.');
+    }
   });
 }
+
