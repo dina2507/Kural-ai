@@ -1,7 +1,7 @@
 export const APP_CONFIG = {
   name: 'KURAL',
   tagline: 'Every voice builds a better city.',
-  url: import.meta.env.VITE_APP_URL ?? 'http://localhost:3000',
+  url: (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_APP_URL : undefined) ?? 'http://localhost:3000',
 
   maps: {
     defaultCenter: { lat: 12.9716, lng: 77.5946 }, // Bengaluru

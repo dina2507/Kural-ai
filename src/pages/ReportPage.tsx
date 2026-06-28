@@ -1,12 +1,9 @@
-import { PageHeader } from '@/shared/components/PageHeader';
+import { ReportWizard } from '@/features/report/components/ReportWizard';
 
 export function ReportPage() {
   return (
     <div>
-      <PageHeader title="Report Issue" subtitle="Coming in Phase 2" />
-      <div className="bg-bg-surface border border-border rounded-xl p-8 flex items-center justify-center text-text-tertiary">
-        Report Wizard placeholder
-      </div>
+      <ReportWizard />
     </div>
   );
 }
