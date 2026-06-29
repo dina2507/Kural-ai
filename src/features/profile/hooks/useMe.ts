@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { auth } from '@/lib/firebase/client';
 import { authedFetch } from '@/lib/api';
 
-export interface MeProfile { id: string; name: string; email?: string; photo?: string | null; karma: number; reports_count: number; }
+export interface MeProfile { id: string; name: string; email?: string; photo?: string | null; karma: number; reports_count: number; role?: 'citizen' | 'official' | 'admin'; }
 
 export function useMe() {
   const uid = auth.currentUser?.uid;

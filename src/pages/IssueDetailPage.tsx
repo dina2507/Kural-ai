@@ -4,6 +4,7 @@ import { useIssue } from '@/features/issues/hooks/useIssue';
 import { IssueTimeline } from '@/features/issues/components/IssueTimeline';
 import { VerificationPanel } from '@/features/issues/components/VerificationPanel';
 import { ResolutionSection } from '@/features/issues/components/ResolutionSection';
+import { OfficialStatusPanel } from '@/features/issues/components/OfficialStatusPanel';
 import { IssueProgressIndicator } from '@/features/issues/components/IssueProgressIndicator';
 import { StaticMapPreview } from '@/features/issues/components/StaticMapPreview';
 import { ImageCarousel } from '@/features/issues/components/ImageCarousel';
@@ -144,6 +145,8 @@ export function IssueDetailPage() {
 
           <VerificationPanel issue={issue} />
           
+          <OfficialStatusPanel issue={issue} />
+
           <ResolutionSection issue={issue} />
 
           <ReportToAuthorityButton issue={issue} />

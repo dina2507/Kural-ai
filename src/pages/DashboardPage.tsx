@@ -34,16 +34,12 @@ export function DashboardPage() {
         <MetricCard 
           label="Open Issues" 
           value={data.totalOpen} 
-          trend="up" 
-          trendValue="+12%" 
-          subLabel="vs last period" 
+          subLabel="Currently active" 
           colorClass="text-warning" 
         />
         <MetricCard 
           label="Resolved" 
           value={data.totalResolved} 
-          trend="up" 
-          trendValue="+5%" 
           subLabel={`${Math.round(data.resolutionRate * 100)}% resolution rate`}
           colorClass="text-success"
         />
@@ -51,14 +47,12 @@ export function DashboardPage() {
           label="City Health Score" 
           value={data.healthScore} 
           colorClass={data.healthScore >= 80 ? 'text-success' : data.healthScore >= 50 ? 'text-warning' : 'text-danger'}
-          subLabel="Based on AI analysis"
+          subLabel="Based on live issues"
         />
         <MetricCard 
           label="Critical Issues" 
           value={data.totalCritical} 
-          trend="down" 
-          trendValue="-2"
-          subLabel="7+ days unresolved"
+          subLabel="Requires attention"
           colorClass="text-danger"
         />
       </div>

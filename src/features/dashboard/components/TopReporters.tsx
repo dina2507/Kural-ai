@@ -8,7 +8,7 @@ export function TopReporters({ reporters }: { reporters: any[] }) {
     <div className="bg-bg-surface p-6 rounded-xl border border-border mt-6">
       <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-6 flex items-center justify-between">
         Top Reporters
-        <span className="text-xs font-normal text-text-tertiary">This week</span>
+        <span className="text-xs font-normal text-text-tertiary">Selected Period</span>
       </h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {reporters.map((reporter, index) => (

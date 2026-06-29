@@ -80,7 +80,7 @@ async function startServer() {
       if (!snap.exists()) {
         await setDoc(userRef, {
           email: u.email, name: u.name || 'Citizen', photo: u.photo || null,
-          karma: 0, reports_count: 0, created_at: new Date().toISOString(),
+          role: 'citizen', karma: 0, reports_count: 0, created_at: new Date().toISOString(),
         });
       } else {
         await setDoc(userRef, { email: u.email, name: u.name || snap.data()?.name, photo: u.photo || snap.data()?.photo || null }, { merge: true });
@@ -109,7 +109,7 @@ async function startServer() {
       if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Not signed in', timestamp: new Date().toISOString() });
       const db = getDb();
       const snap = await getDoc(doc(db, 'users', u.uid));
-      const data = snap.exists() ? { id: snap.id, ...snap.data() } : { id: u.uid, name: u.name || 'Citizen', karma: 0, reports_count: 0 };
+      const data = snap.exists() ? { id: snap.id, ...snap.data() } : { id: u.uid, name: u.name || 'Citizen', role: 'citizen', karma: 0, reports_count: 0 };
       return res.json({ success: true, data, timestamp: new Date().toISOString() });
     } catch (err) {
       return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
@@ -248,7 +248,7 @@ async function startServer() {
               reports_count: (us.data()?.reports_count || 0) + 1,
             });
           } else {
-            tx.set(userRef, { email: u.email, name: u.name || 'Citizen', photo: u.photo || null, karma: 10, reports_count: 1, created_at: new Date().toISOString() });
+            tx.set(userRef, { email: u.email, name: u.name || 'Citizen', photo: u.photo || null, role: 'citizen', karma: 10, reports_count: 1, created_at: new Date().toISOString() });
           }
         });
       } catch (_) { /* karma is best-effort */ }
@@ -405,12 +405,19 @@ async function startServer() {
   app.get('/api/health-score', async (req, res) => {
     try {
       const db = getDb();
+      
+      const allIssuesSnapshot = await getDocs(collection(db, 'issues'));
+      let allIssues: any[] = [];
+      allIssuesSnapshot.forEach(d => allIssues.push(d.data()));
+      const globalOpen = allIssues.filter(i => i.status !== 'resolved' && i.status !== 'closed').length;
+      const computedScore = Math.max(10, 100 - (globalOpen * 5));
+
       const snapshot = await getDocs(
         query(collection(db, 'city_health_scores'), orderBy('created_at', 'desc'), limit(1))
       );
       let data: any = null;
       if (!snapshot.empty) data = snapshot.docs[0].data();
-      return res.json({ success: true, data: data || { score: 85, rationale: 'Default score' }, timestamp: new Date().toISOString() });
+      return res.json({ success: true, data: data || { score: computedScore, rationale: 'Calculated dynamically based on open issues' }, timestamp: new Date().toISOString() });
     } catch (err) {
       return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
     }
@@ -601,10 +608,17 @@ async function startServer() {
   app.get('/api/dashboard', async (req, res) => {
     try {
       const db = getDb();
+      
+      const allIssuesSnapshot = await getDocs(collection(db, 'issues'));
+      let allIssues: any[] = [];
+      allIssuesSnapshot.forEach(d => allIssues.push(d.data()));
+      const globalOpen = allIssues.filter(i => i.status !== 'resolved' && i.status !== 'closed').length;
+      const computedScore = Math.max(10, 100 - (globalOpen * 5)); // Minus 5 points per open issue, floor at 10
+
       const healthSnapshot = await getDocs(
         query(collection(db, 'city_health_scores'), orderBy('created_at', 'desc'), limit(1))
       );
-      const healthScore = !healthSnapshot.empty ? healthSnapshot.docs[0].data().score : 85;
+      const healthScore = !healthSnapshot.empty ? healthSnapshot.docs[0].data().score : computedScore;
 
       const period = (req.query.period as string) || '30d';
       const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
@@ -629,12 +643,16 @@ async function startServer() {
 
       const wardComparison = Object.entries(
         safeIssues.reduce((acc, issue) => {
-          if (!acc[issue.ward]) acc[issue.ward] = { open: 0, resolved: 0 };
+          if (!acc[issue.ward]) acc[issue.ward] = { open: 0, resolved: 0, total: 0 };
+          acc[issue.ward].total++;
           if (issue.status === 'resolved' || issue.status === 'closed') acc[issue.ward].resolved++;
           else acc[issue.ward].open++;
           return acc;
-        }, {} as Record<string, { open: number; resolved: number }>)
-      ).map(([ward, counts]: [string, any]) => ({ ward, open: counts.open, resolved: counts.resolved, score: 85 }));
+        }, {} as Record<string, { open: number; resolved: number; total: number }>)
+      ).map(([ward, counts]: [string, any]) => {
+         const wardScore = Math.max(10, 100 - (counts.open * 5));
+         return { ward, open: counts.open, resolved: counts.resolved, score: wardScore };
+      });
 
       // Real 4-week trend (reported by created_at, resolved by resolved_at)
       const trendSince = new Date();
@@ -670,9 +688,20 @@ async function startServer() {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
+      const resolvedIssues = safeIssues.filter(i => (i.status === 'resolved' || i.status === 'closed') && i.resolved_at);
+      let avgResolutionDays = 0;
+      if (resolvedIssues.length > 0) {
+         const totalMs = resolvedIssues.reduce((acc, i) => {
+             const created = new Date(i.created_at).getTime();
+             const resolved = new Date(i.resolved_at).getTime();
+             return acc + (resolved - created);
+         }, 0);
+         avgResolutionDays = totalMs / resolvedIssues.length / (1000 * 60 * 60 * 24);
+      }
+
       return res.json({
         success: true,
-        data: { healthScore, totalOpen, totalResolved, totalCritical, resolutionRate, avgResolutionDays: 3, categoryBreakdown, weeklyTrend, wardComparison, topReporters },
+        data: { healthScore, totalOpen, totalResolved, totalCritical, resolutionRate, avgResolutionDays, categoryBreakdown, weeklyTrend, wardComparison, topReporters },
         timestamp: new Date().toISOString(),
       });
     } catch (err) {
@@ -735,6 +764,68 @@ async function startServer() {
         },
         timestamp: new Date().toISOString(),
       });
+    } catch (err) {
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
+  });
+
+  app.patch('/api/issues/:id/status', async (req, res) => {
+    try {
+      const u = getUser(req);
+      if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Please sign in.', timestamp: new Date().toISOString() });
+
+      const db = getDb();
+
+      // Server-side role check — never trust the client for this.
+      const meSnap = await getDoc(doc(db, 'users', u.uid));
+      const role = meSnap.data()?.role || 'citizen';
+      if (role !== 'official' && role !== 'admin') {
+        return res.status(403).json({ success: false, data: null, error: 'Only officials can update issue status.', timestamp: new Date().toISOString() });
+      }
+
+      const { status, note } = req.body || {};
+      const allowed = ['in_progress', 'resolved', 'rejected', 'closed'];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({ success: false, data: null, error: 'Invalid status', timestamp: new Date().toISOString() });
+      }
+
+      const issueRef = doc(db, 'issues', req.params.id);
+      const issueSnap = await getDoc(issueRef);
+      if (!issueSnap.exists()) {
+        return res.status(404).json({ success: false, data: null, error: 'Issue not found', timestamp: new Date().toISOString() });
+      }
+      const prevStatus = issueSnap.data()?.status;
+
+      const update: any = { status, updated_at: new Date().toISOString() };
+      if (status === 'resolved') update.resolved_at = new Date().toISOString();
+      await updateDoc(issueRef, update);
+
+      // Timeline entry (renders in the existing IssueTimeline as a "municipality" action)
+      await addDoc(collection(db, 'issue_timeline'), {
+        issue_id: req.params.id,
+        actor_type: 'municipality',
+        actor_id: u.uid,
+        event_type: 'status_update',
+        title: `Marked ${String(status).replace('_', ' ')} by ${u.name || 'official'}`,
+        description: note || null,
+        created_at: new Date().toISOString(),
+      });
+
+      // Award the reporter +30 karma the first time an issue becomes resolved.
+      if (status === 'resolved' && prevStatus !== 'resolved') {
+        const reporterId = issueSnap.data()?.reporter_id;
+        if (reporterId) {
+          try {
+            const rRef = doc(db, 'users', reporterId);
+            await runTransaction(db, async (tx) => {
+              const us = await tx.get(rRef);
+              if (us.exists()) tx.update(rRef, { karma: (us.data()?.karma || 0) + 30 });
+            });
+          } catch (_) {}
+        }
+      }
+
+      return res.json({ success: true, data: { status }, timestamp: new Date().toISOString() });
     } catch (err) {
       return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
     }

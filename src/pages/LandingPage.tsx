@@ -102,7 +102,7 @@ export function LandingPage() {
       {/* Hero Section */}
       <motion.section variants={fadeInUp} className="text-center py-12 md:py-24">
         <HealthScoreRing 
-           score={dashboardData?.healthScore || 85} 
+           score={dashboardData?.healthScore ?? 100} 
            issueCount={activeIssues} 
         />
         
