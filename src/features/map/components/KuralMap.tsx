@@ -3,6 +3,7 @@ import { APIProvider, Map } from '@vis.gl/react-google-maps';
 import { useIssues } from '../../issues/hooks/useIssues';
 import { useMapStore } from '../../../store/mapStore';
 import { APP_CONFIG } from '../../../lib/config';
+import { ErrorBoundary } from '../../../shared/components/ErrorBoundary';
 import { IssueMarker } from './IssueMarker';
 import { HeatmapLayer } from './HeatmapLayer';
 import { db } from '../../../lib/firebase/client';
@@ -41,25 +42,33 @@ export function KuralMap() {
     }));
   }, [filteredIssues]);
 
+  // Only pass a mapId if a real one is configured (the placeholder breaks the map + heatmap).
+  const mapId =
+    APP_CONFIG.maps.darkMapId && APP_CONFIG.maps.darkMapId !== 'YOUR_DARK_MAP_ID'
+      ? APP_CONFIG.maps.darkMapId
+      : undefined;
+
   return (
     <div className="w-full h-full rounded-xl overflow-hidden relative">
-      <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''} libraries={['visualization', 'marker']}>
-        <Map
-          defaultCenter={APP_CONFIG.maps.defaultCenter}
-          defaultZoom={APP_CONFIG.maps.defaultZoom}
-          mapId={APP_CONFIG.maps.darkMapId}
-          disableDefaultUI={true}
-          zoomControl={true}
-        >
-          {filters.viewMode === 'heatmap' ? (
-             <HeatmapLayer data={heatmapData} />
-          ) : (
-            filteredIssues.map((issue) => (
-              <IssueMarker key={issue.id} issue={issue} />
-            ))
-          )}
-        </Map>
-      </APIProvider>
+      <ErrorBoundary>
+        <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''} libraries={['visualization', 'marker']}>
+          <Map
+            defaultCenter={APP_CONFIG.maps.defaultCenter}
+            defaultZoom={APP_CONFIG.maps.defaultZoom}
+            mapId={mapId}
+            disableDefaultUI={true}
+            zoomControl={true}
+          >
+            {filters.viewMode === 'heatmap' ? (
+               <HeatmapLayer data={heatmapData} />
+            ) : (
+              filteredIssues.map((issue) => (
+                <IssueMarker key={issue.id} issue={issue} />
+              ))
+            )}
+          </Map>
+        </APIProvider>
+      </ErrorBoundary>
     </div>
   );
 }

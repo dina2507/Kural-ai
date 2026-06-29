@@ -30,10 +30,12 @@ export function HeatmapLayer({ data }: { data: any[] }) {
 
   useEffect(() => {
     if (heatmap && visualization) {
-      const gData = data.map(point => ({
-         location: new google.maps.LatLng(point.lat, point.lng),
-         weight: point.weight
-      }));
+      const gData = data
+        .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+        .map((point) => ({
+          location: new google.maps.LatLng(point.lat, point.lng),
+          weight: Number.isFinite(point.weight) ? point.weight : 1,
+        }));
       heatmap.setData(gData);
     }
   }, [data, heatmap, visualization]);

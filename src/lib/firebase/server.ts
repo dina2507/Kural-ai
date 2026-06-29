@@ -1,31 +1,16 @@
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
-import * as fs from 'fs';
-import * as path from 'path';
+// Server-side Firestore using the Firebase Web SDK (NOT firebase-admin).
+// AI Studio's runtime does not provide privileged Admin credentials, so we use
+// the public web config + Security Rules, exactly like the client does.
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import firebaseConfig from '../../../firebase-applet-config.json';
 
-// Firebase Admin initialization
-let adminApp;
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export function getAdminApp() {
-  const existing = getApps();
-  if (existing.length) return existing[0];
+// Use the named applet database id from the config.
+export const db: Firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
-  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  // AI Studio provides Application Default Credentials at runtime;
-  // we only need to pin the projectId.
-  return initializeApp({ projectId: config.projectId });
-}
-
-export function getAdminDb() {
-  const app = getAdminApp();
-  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  return getFirestore(app, config.firestoreDatabaseId);
-}
-
-export function getAdminAuth() {
-  const app = getAdminApp();
-  return getAuth(app);
+// Backwards-compatible accessor used by server.ts
+export function getDb(): Firestore {
+  return db;
 }
