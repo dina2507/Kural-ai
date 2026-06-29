@@ -5,7 +5,7 @@ import { useMapStore } from '../../../store/mapStore';
 import { IssueInfoWindow } from './IssueInfoWindow';
 import { motion, AnimatePresence } from 'motion/react';
 
-export function IssueMarker({ issue }: { issue: Issue; key?: React.Key }) {
+export function IssueMarker({ issue, setMarkerRef }: { issue: Issue; key?: React.Key; setMarkerRef?: (marker: any) => void }) {
   const { selectedIssueId, setSelectedIssueId } = useMapStore();
   const isSelected = selectedIssueId === issue.id;
 
@@ -22,6 +22,7 @@ export function IssueMarker({ issue }: { issue: Issue; key?: React.Key }) {
   return (
     <>
       <AdvancedMarker
+        ref={setMarkerRef}
         position={{ lat: issue.latitude, lng: issue.longitude }}
         onClick={() => setSelectedIssueId(isSelected ? null : issue.id)}
         className={`cursor-pointer transition-transform ${isSelected ? 'scale-125 z-10' : 'z-0'}`}

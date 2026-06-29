@@ -116,6 +116,25 @@ async function startServer() {
     }
   });
 
+  app.put('/api/users/me', async (req, res) => {
+    try {
+      const u = getUser(req);
+      if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Not signed in', timestamp: new Date().toISOString() });
+      const db = getDb();
+      const userRef = doc(db, 'users', u.uid);
+      
+      const { name } = req.body;
+      if (name !== undefined) {
+        await setDoc(userRef, { name }, { merge: true });
+      }
+      
+      const snap = await getDoc(userRef);
+      return res.json({ success: true, data: { id: snap.id, ...snap.data() }, timestamp: new Date().toISOString() });
+    } catch (err) {
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
+  });
+
   app.get('/api/users/:id', async (req, res) => {
     try {
       if (req.params.id === 'me') return; // Handled above

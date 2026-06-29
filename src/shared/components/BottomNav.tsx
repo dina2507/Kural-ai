@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Map as MapIcon, PlusCircle, BarChart2, Bot } from 'lucide-react';
+import { Home, Map as MapIcon, PlusCircle, BarChart2, Bot, User } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -14,7 +14,7 @@ export function BottomNav({ className }: { className?: string }) {
     { name: 'Home', path: '/', icon: Home },
     { name: 'Map', path: '/map', icon: MapIcon },
     { name: 'Report', path: '/report', icon: PlusCircle, isPrimary: true },
-    { name: 'Dashboard', path: '/dashboard', icon: BarChart2 },
+    { name: 'Profile', path: '/profile', icon: User },
     { name: 'Agent', path: '/agent', icon: Bot },
   ];
 

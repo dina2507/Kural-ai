@@ -5,8 +5,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryClient, asyncStoragePersister } from '@/lib/queryClient';
 import { auth } from '@/lib/firebase/client';
 import { onAuthStateChanged } from 'firebase/auth';
 import { AppLayout } from '@/shared/components/AppLayout';
@@ -20,6 +20,7 @@ import { IssueDetailPage } from '@/pages/IssueDetailPage';
 import { AuthPage } from '@/pages/AuthPage';
 import { MyReportsPage } from '@/pages/MyReportsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
+import { ProfilePage } from '@/pages/ProfilePage';
 import { Toaster } from 'sonner';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -45,7 +46,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: asyncStoragePersister }}>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<AppLayout />}>
@@ -58,13 +59,14 @@ export default function App() {
             <Route path="issue/:id" element={<ProtectedRoute><IssueDetailPage /></ProtectedRoute>} />
             <Route path="my-reports" element={<ProtectedRoute><MyReportsPage /></ProtectedRoute>} />
             <Route path="leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+            <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           </Route>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
       <Toaster theme="dark" position="bottom-right" />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 

@@ -5,6 +5,7 @@ import { IssueCard } from '@/features/issues/components/IssueCard';
 import { APP_CONFIG } from '@/lib/config';
 import { MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
+import PullToRefresh from 'react-simple-pull-to-refresh';
 
 export function IssuesPage() {
   const [filters, setFilters] = useState({
@@ -13,7 +14,7 @@ export function IssuesPage() {
      sort: 'newest'
   });
   
-  const { data: issues = [], isLoading } = useIssues();
+  const { data: issues = [], isLoading, refetch } = useIssues();
 
   const filtered = issues.filter(issue => {
      if (filters.category && issue.category !== filters.category) return false;
@@ -24,6 +25,10 @@ export function IssuesPage() {
      if (filters.sort === 'confirmations') return (b.confirmationCount || 0) - (a.confirmationCount || 0);
      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+
+  const handleRefresh = async () => {
+    await refetch();
+  };
 
   return (
     <div className="max-w-5xl mx-auto pb-20">
@@ -66,21 +71,23 @@ export function IssuesPage() {
         </select>
       </div>
 
-      {isLoading ? (
-        <div className="text-center p-8 text-text-tertiary">Loading issues...</div>
-      ) : filtered.length === 0 ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-bg-surface border border-border rounded-xl p-12 text-center flex flex-col items-center">
-           <MapPin className="w-12 h-12 text-text-tertiary mb-4" />
-           <div className="text-text-secondary font-medium mb-4">No issues match your filters.</div>
-           <button onClick={() => setFilters({ category: '', status: '', sort: 'newest' })} className="px-6 py-2 bg-bg-elevated border border-border rounded-lg text-sm font-medium hover:bg-bg-elevated/80 transition-colors">Clear Filters</button>
-        </motion.div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-          {filtered.map(issue => (
-            <IssueCard key={issue.id} issue={issue} />
-          ))}
-        </div>
-      )}
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-[50vh]">
+        {isLoading ? (
+          <div className="text-center p-8 text-text-tertiary">Loading issues...</div>
+        ) : filtered.length === 0 ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-bg-surface border border-border rounded-xl p-12 text-center flex flex-col items-center">
+             <MapPin className="w-12 h-12 text-text-tertiary mb-4" />
+             <div className="text-text-secondary font-medium mb-4">No issues match your filters.</div>
+             <button onClick={() => setFilters({ category: '', status: '', sort: 'newest' })} className="px-6 py-2 bg-bg-elevated border border-border rounded-lg text-sm font-medium hover:bg-bg-elevated/80 transition-colors">Clear Filters</button>
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+            {filtered.map(issue => (
+              <IssueCard key={issue.id} issue={issue} />
+            ))}
+          </div>
+        )}
+      </PullToRefresh>
     </div>
   );
 }

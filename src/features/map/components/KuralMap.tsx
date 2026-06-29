@@ -5,6 +5,7 @@ import { useMapStore } from '../../../store/mapStore';
 import { APP_CONFIG } from '../../../lib/config';
 import { ErrorBoundary } from '../../../shared/components/ErrorBoundary';
 import { IssueMarker } from './IssueMarker';
+import { ClusteredMarkers } from './ClusteredMarkers';
 import { HeatmapLayer } from './HeatmapLayer';
 import { db } from '../../../lib/firebase/client';
 import { collection, onSnapshot, query, limit, orderBy } from 'firebase/firestore';
@@ -62,9 +63,7 @@ export function KuralMap() {
             {filters.viewMode === 'heatmap' ? (
                <HeatmapLayer data={heatmapData} />
             ) : (
-              filteredIssues.map((issue) => (
-                <IssueMarker key={issue.id} issue={issue} />
-              ))
+               <ClusteredMarkers issues={filteredIssues} />
             )}
           </Map>
         </APIProvider>
