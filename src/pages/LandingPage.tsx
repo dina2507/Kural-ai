@@ -1,7 +1,8 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase/client';
+import { db } from '@/lib/firebase/client';
+import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/firestore';
 import { APP_CONFIG } from '@/lib/config';
 import { HealthScoreRing } from '@/features/dashboard/components/HealthScoreRing';
 import { useDashboard } from '@/features/dashboard/hooks/useDashboard';
@@ -80,12 +81,15 @@ export function LandingPage() {
   }, [dashboardData]);
 
   useEffect(() => {
-     const channel = supabase.channel('landing-issues')
-       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'issues' }, () => {
-          setActiveIssues(prev => prev + 1);
-       })
-       .subscribe();
-     return () => { supabase.removeChannel(channel); };
+     const q = query(collection(db, 'issues'), orderBy('created_at', 'desc'), limit(1));
+     const unsubscribe = onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+           if (change.type === 'added') {
+              setActiveIssues(prev => prev + 1);
+           }
+        });
+     });
+     return () => unsubscribe();
   }, []);
 
   return (

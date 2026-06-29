@@ -3,7 +3,7 @@ import { Home, Map as MapIcon, PlusCircle, BarChart2, Bot, List, LogOut } from '
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { APP_CONFIG } from '@/lib/config';
-import { supabase } from '@/lib/supabase/client';
+import { signOut } from '@/lib/firebase/client';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -13,7 +13,7 @@ export function Sidebar({ className }: { className?: string }) {
   const location = useLocation();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     window.location.href = '/auth';
   };
 

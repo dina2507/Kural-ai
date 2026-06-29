@@ -1,0 +1,78 @@
+{
+  "models": {
+    "issues": {
+      "type": "collection",
+      "fields": {
+        "title": "string",
+        "description": "string",
+        "category": "string",
+        "severity": "number",
+        "status": "string",
+        "latitude": "number",
+        "longitude": "number",
+        "address": "string",
+        "ward": "string",
+        "images": "array",
+        "resolution_image": "string",
+        "ai_tags": "array",
+        "ai_analysis": "map",
+        "confirmation_count": "number",
+        "view_count": "number",
+        "resolution_verified": "boolean",
+        "resolution_confidence": "number",
+        "resolution_reasoning": "string",
+        "reporter_id": "string",
+        "upvotes": "number",
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "resolved_at": "timestamp",
+        "deleted_at": "timestamp"
+      }
+    },
+    "issue_timeline": {
+      "type": "collection",
+      "fields": {
+        "issue_id": "string",
+        "action": "string",
+        "agent": "string",
+        "description": "string",
+        "created_at": "timestamp"
+      }
+    },
+    "city_health_scores": {
+      "type": "collection",
+      "fields": {
+        "score": "number",
+        "created_at": "timestamp"
+      }
+    },
+    "escalation_drafts": {
+      "type": "collection",
+      "fields": {
+        "ward": "string",
+        "department": "string",
+        "description": "string",
+        "urgency_score": "number",
+        "status": "string",
+        "created_at": "timestamp"
+      }
+    },
+    "ward_reports": {
+      "type": "collection",
+      "fields": {
+        "ward": "string",
+        "health_score": "number",
+        "summary": "string",
+        "top_issues": "array",
+        "created_at": "timestamp"
+      }
+    },
+    "users": {
+      "type": "collection",
+      "fields": {
+        "email": "string",
+        "created_at": "timestamp"
+      }
+    }
+  }
+}

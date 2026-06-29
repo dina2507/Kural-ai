@@ -5,7 +5,8 @@ import { useMapStore } from '../../../store/mapStore';
 import { APP_CONFIG } from '../../../lib/config';
 import { IssueMarker } from './IssueMarker';
 import { HeatmapLayer } from './HeatmapLayer';
-import { supabase } from '../../../lib/supabase/client';
+import { db } from '../../../lib/firebase/client';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -15,18 +16,11 @@ export function KuralMap() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const channel = supabase
-      .channel('issues-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'issues' },
-        (payload) => {
-          queryClient.invalidateQueries({ queryKey: ['issues'] });
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    const q = query(collection(db, 'issues'), limit(1));
+    const unsubscribe = onSnapshot(q, () => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] });
+    });
+    return () => unsubscribe();
   }, [queryClient]);
 
   // Client side filtering for Phase 2

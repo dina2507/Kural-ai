@@ -1,18 +1,18 @@
 import { motion } from 'motion/react';
-import { supabase } from '@/lib/supabase/client';
+import { signInWithGoogle } from '@/lib/firebase/client';
 import { APP_CONFIG } from '@/lib/config';
+import { useNavigate } from 'react-router-dom';
 
 export function AuthPage() {
+  const navigate = useNavigate();
+
   const handleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`
-      }
-    });
+    const { error } = await signInWithGoogle();
     
     if (error) {
       console.error('Error signing in:', error);
+    } else {
+      navigate('/dashboard');
     }
   };
 

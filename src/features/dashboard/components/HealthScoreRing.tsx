@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, animate } from 'motion/react';
-import { supabase } from '../../../lib/supabase/client';
+import { db } from '../../../lib/firebase/client';
+import { collection, onSnapshot, query, limit } from 'firebase/firestore';
 
 interface Props {
   score: number;
@@ -33,16 +34,17 @@ export function HealthScoreRing({ score, issueCount, isLive = true }: Props) {
 
   useEffect(() => {
     if (!isLive) return;
-    const channel = supabase.channel('ring-burst')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'issues' }, () => {
-        if (ring2Ref.current) {
+    const q = query(collection(db, 'issues'), limit(1));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added' && ring2Ref.current) {
           const { animate } = require('motion');
           animate(ring2Ref.current, { scale: [1, 1.6], opacity: [0.8, 0] }, { duration: 0.8 });
           if (ring3Ref.current) animate(ring3Ref.current, { scale: [1, 2], opacity: [0.5, 0] }, { duration: 0.8 });
         }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+      });
+    });
+    return () => unsubscribe();
   }, [isLive]);
 
   return (

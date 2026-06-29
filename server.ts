@@ -4,7 +4,7 @@ import { createServer as createViteServer } from 'vite';
 
 import multer from 'multer';
 import { runVisionAgent } from './src/ai/agents/visionAgent.js';
-import { createServerSupabaseClient } from './src/lib/supabase/server.js';
+import { getAdminDb } from './src/lib/firebase/server.js';
 import { createIssueSchema } from './src/lib/validators/issue.validator.js';
 
 import { runCivicMindAgent } from './src/ai/agents/civicMindAgent.js';
@@ -68,24 +68,31 @@ async function startServer() {
         return res.status(400).json({ success: false, data: null, error: 'Invalid coordinates', timestamp: new Date().toISOString() });
       }
 
-      const supabase = createServerSupabaseClient();
+      const db = getAdminDb();
       
-      // PostGIS find nearby issues - RPC call
+      // PostGIS find nearby issues -> Firebase basic fetch + JS distance
       let nearbyIssues: any[] = [];
       try {
-        const { data, error } = await supabase.rpc('find_nearby_issues', {
-          lat: lat,
-          lng: lng,
-          radius_meters: 50
+        const issuesSnapshot = await db.collection('issues').get();
+        const MAX_RADIUS = 50; // meters
+        
+        issuesSnapshot.forEach(doc => {
+          const i = doc.data();
+          if (i.latitude && i.longitude) {
+            // Very rough distance calculation for MVP
+            const dLat = (i.latitude - lat) * 111320;
+            const dLng = (i.longitude - lng) * 40000 * Math.cos(lat * Math.PI / 180);
+            const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+            if (dist <= MAX_RADIUS) {
+              nearbyIssues.push({
+                id: doc.id,
+                category: i.category,
+                title: i.title,
+                distance: dist
+              });
+            }
+          }
         });
-        if (data) {
-          nearbyIssues = data.map((i: any) => ({
-            id: i.id,
-            category: i.category,
-            title: i.title,
-            distance: i.dist_meters || 0
-          }));
-        }
       } catch (err) {
         console.warn('Could not fetch nearby issues', err);
       }
@@ -124,7 +131,7 @@ async function startServer() {
       }
       
       const data = validation.data;
-      const supabase = createServerSupabaseClient();
+      const db = getAdminDb();
 
       // Ensure we extract token from Auth header in real app
       // Here we assume client creates issue anonymously or provides userId via header
@@ -137,7 +144,6 @@ async function startServer() {
           severity: data.severity,
           latitude: data.latitude,
           longitude: data.longitude,
-          location: `SRID=4326;POINT(${data.longitude} ${data.latitude})`,
           address: 'Address generated from lat/lng', // Placeholder, ideally use geocoding
           ward: 'Unknown Ward', // Placeholder
           images: data.images,
@@ -145,35 +151,16 @@ async function startServer() {
           ai_analysis: data.aiAnalysis,
           reporter_id: reporterId,
           status: 'ai_verified',
-          upvotes: 0
+          upvotes: 0,
+          created_at: new Date().toISOString()
       };
 
-      // In a real app we would use ST_Point, but since we rely on the PostGIS schema:
-      // Insert with location
-      const { data: issue, error } = await supabase
-        .from('issues')
-        .insert(newIssue)
-        .select()
-        .single();
-        
-      if (error) {
-        if (error.code === 'PGRST205' || error.code === '42P01') {
-          console.warn('[CreateIssue] Supabase table not found, using in-memory mock');
-          newIssue.id = Math.random().toString(36).substring(7);
-          newIssue.created_at = new Date().toISOString();
-          newIssue.confirmation_count = 0;
-          global.mockIssues = global.mockIssues || [];
-          global.mockIssues.unshift(newIssue);
-          return res.json({ success: true, data: newIssue, timestamp: new Date().toISOString() });
-        }
-        throw error;
-      }
+      const docRef = await db.collection('issues').add(newIssue);
+      newIssue.id = docRef.id;
 
-      // We should also insert into issue_timeline, but skipping for brevity if not strictly needed
-      // returning issue
       return res.json({
         success: true,
-        data: mapIssue(issue),
+        data: mapIssue(newIssue),
         timestamp: new Date().toISOString()
       });
 
@@ -190,31 +177,25 @@ async function startServer() {
 
   app.get('/api/issues', async (req, res) => {
     try {
-      const supabase = createServerSupabaseClient();
-      let query = supabase.from('issues').select('*').is('deleted_at', null).order('created_at', { ascending: false });
+      const db = getAdminDb();
+      let issuesRef = db.collection('issues');
+      let queryRef: any = issuesRef;
       
       if (req.query.status) {
-        query = query.eq('status', req.query.status);
+        queryRef = queryRef.where('status', '==', req.query.status);
       }
       if (req.query.category) {
         const cats = Array.isArray(req.query.category) ? req.query.category : [req.query.category];
-        query = query.in('category', cats);
+        queryRef = queryRef.where('category', 'in', cats);
       }
 
-      const { data, error } = await query;
+      const snapshot = await queryRef.get();
       
-      let finalData = data || [];
-      if (error) {
-        if (error.code === 'PGRST205' || error.code === '42P01') {
-           finalData = [];
-        } else {
-           throw error;
-        }
-      }
-      
-      if ((global as any).mockIssues) {
-         finalData = [...(global as any).mockIssues, ...finalData];
-      }
+      let finalData: any[] = [];
+      snapshot.forEach((doc: any) => {
+        finalData.push({ id: doc.id, ...doc.data() });
+      });
+      finalData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       return res.json({
         success: true,
@@ -228,51 +209,49 @@ async function startServer() {
 
   app.post('/api/agents/civic-mind', async (req, res) => {
     try {
-      const supabase = createServerSupabaseClient();
+      const db = getAdminDb();
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const { data: issues, error } = await supabase
-        .from('issues')
-        .select('*')
-        .is('deleted_at', null)
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false });
+      const snapshot = await db.collection('issues')
+        .where('created_at', '>=', thirtyDaysAgo.toISOString())
+        .get();
         
-      let safeIssues = issues || [];
-      if (error) {
-        if (error.code === 'PGRST205' || error.code === '42P01') {
-           safeIssues = (global as any).mockIssues || [];
-        } else {
-           throw error;
-        }
-      }
+      let safeIssues: any[] = [];
+      snapshot.forEach(doc => {
+        safeIssues.push({ id: doc.id, ...doc.data() });
+      });
+      safeIssues.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
-      const analysis = await runCivicMindAgent(issues || []);
+      const analysis = await runCivicMindAgent(safeIssues);
       
       // Store drafts
       if (analysis.clusters && analysis.clusters.length > 0) {
-         const draftsToInsert = analysis.clusters.map(cluster => ({
-            id: cluster.id,
-            ward: cluster.ward,
-            category: cluster.category,
-            issue_ids: cluster.issueIds,
-            urgency_score: cluster.urgencyScore,
-            department: cluster.department,
-            letter_content: cluster.escalationLetter,
-            status: 'draft'
-         }));
-         
-         await supabase.from('escalation_drafts').upsert(draftsToInsert);
+         const batch = db.batch();
+         analysis.clusters.forEach(cluster => {
+           const draftRef = db.collection('escalation_drafts').doc(cluster.id);
+           batch.set(draftRef, {
+             ward: cluster.ward,
+             category: cluster.category,
+             issue_ids: cluster.issueIds,
+             urgency_score: cluster.urgencyScore,
+             department: cluster.department,
+             letter_content: cluster.escalationLetter,
+             status: 'draft',
+             created_at: new Date().toISOString()
+           }, { merge: true });
+         });
+         await batch.commit();
       }
       
       // Store health score
-      await supabase.from('city_health_scores').insert({
+      await db.collection('city_health_scores').add({
          score: analysis.healthScore,
          rationale: analysis.healthRationale,
          critical_count: analysis.criticalCount,
          total_analyzed: analysis.totalAnalyzed,
-         recommended_actions: analysis.recommendedActions
+         recommended_actions: analysis.recommendedActions,
+         created_at: new Date().toISOString()
       });
       
       return res.json({
@@ -310,27 +289,29 @@ async function startServer() {
           originalDescription
         });
         
-        const supabase = createServerSupabaseClient();
+        const db = getAdminDb();
         
         // Update issue
         const newStatus = analysis.verified ? 'resolved' : 'in_progress';
-        await supabase.from('issues').update({
+        await db.collection('issues').doc(issueId).update({
            resolution_verified: analysis.verified,
            resolution_confidence: analysis.confidence,
            resolution_reasoning: analysis.reasoning,
            status: newStatus,
-           resolved_at: analysis.verified ? new Date().toISOString() : null
-        }).eq('id', issueId);
+           resolved_at: analysis.verified ? new Date().toISOString() : null,
+           updated_at: new Date().toISOString()
+        });
         
         // Timeline event
-        await supabase.from('issue_timeline').insert({
+        await db.collection('issue_timeline').add({
            issue_id: issueId,
            actor_type: 'ai_agent',
            agent_name: 'resolution_agent',
            event_type: 'resolution_verification',
            title: 'Resolution Agent analyzed image',
            description: analysis.reasoning,
-           metadata: analysis
+           metadata: analysis,
+           created_at: new Date().toISOString()
         });
         
         return res.json({
@@ -347,11 +328,17 @@ async function startServer() {
 
   app.get('/api/health-score', async (req, res) => {
     try {
-      const supabase = createServerSupabaseClient();
+      const db = getAdminDb();
       
-      const { data, error } = await supabase.from('city_health_scores').select('*').order('created_at', { ascending: false }).limit(1).single();
-      
-      if (error && error.code !== 'PGRST116') throw error;
+      const snapshot = await db.collection('city_health_scores')
+        .orderBy('created_at', 'desc')
+        .limit(1)
+        .get();
+        
+      let data = null;
+      if (!snapshot.empty) {
+        data = snapshot.docs[0].data();
+      }
       
       return res.json({
         success: true,
@@ -368,20 +355,22 @@ async function startServer() {
        const issueId = req.params.id;
        const userId = req.headers['x-user-id'] || '00000000-0000-0000-0000-000000000000';
        
-       const supabase = createServerSupabaseClient();
+       const db = getAdminDb();
        
-       const { data, error } = await supabase.from('issue_confirmations').insert({
+       await db.collection('issue_confirmations').add({
           issue_id: issueId,
-          user_id: userId
+          user_id: userId,
+          created_at: new Date().toISOString()
        });
        
        // Timeline
-       await supabase.from('issue_timeline').insert({
+       await db.collection('issue_timeline').add({
            issue_id: issueId,
            actor_type: 'citizen',
            actor_id: userId,
            event_type: 'community_verification',
            title: 'Confirmed by citizen',
+           created_at: new Date().toISOString()
        });
        
        return res.json({
@@ -397,35 +386,22 @@ async function startServer() {
    app.post('/api/issues/:id/upvote', async (req, res) => {
      try {
        const issueId = req.params.id;
-       const supabase = createServerSupabaseClient();
+       const db = getAdminDb();
+       const issueRef = db.collection('issues').doc(issueId);
        
-       const { data, error } = await supabase.rpc('increment_upvotes', { row_id: issueId });
-       
-       if (error) {
-         if (error.code === 'PGRST205' || error.code === '42P01' || error.code === 'PGRST202' || error.code === '42883') {
-           // RPC might not exist, or table might not exist
-           const mockIssue = ((global as any).mockIssues || []).find((i: any) => i.id === issueId);
-           if (mockIssue) {
-              mockIssue.upvotes = (mockIssue.upvotes || 0) + 1;
-              return res.json({ success: true, data: mapIssue(mockIssue), timestamp: new Date().toISOString() });
-           }
-         }
-         
-         // Fallback if RPC fails but table exists
-         const { data: issue, error: fetchError } = await supabase.from('issues').select('upvotes').eq('id', issueId).single();
-         if (!fetchError && issue) {
-            const { data: updatedIssue, error: updateError } = await supabase.from('issues').update({ upvotes: (issue.upvotes || 0) + 1 }).eq('id', issueId).select().single();
-            if (!updateError) {
-               return res.json({ success: true, data: mapIssue(updatedIssue), timestamp: new Date().toISOString() });
-            }
-         }
-         
-         throw error;
-       }
+       const updatedIssue = await db.runTransaction(async (transaction) => {
+          const doc = await transaction.get(issueRef);
+          if (!doc.exists) {
+             throw new Error('Issue not found');
+          }
+          const upvotes = (doc.data()?.upvotes || 0) + 1;
+          transaction.update(issueRef, { upvotes });
+          return { id: doc.id, ...doc.data(), upvotes };
+       });
        
        return res.json({
          success: true,
-         data: mapIssue(data),
+         data: mapIssue(updatedIssue),
          timestamp: new Date().toISOString()
        });
      } catch(err) {
@@ -435,20 +411,16 @@ async function startServer() {
 
   app.get('/api/issues/:id', async (req, res) => {
      try {
-       const supabase = createServerSupabaseClient();
-       const { data, error } = await supabase.from('issues').select('*').eq('id', req.params.id).single();
-       if (error) {
-         if (error.code === 'PGRST205' || error.code === 'PGRST116' || error.code === '42P01') {
-           const mockIssue = ((global as any).mockIssues || []).find((i: any) => i.id === req.params.id);
-           if (!mockIssue) return res.status(404).json({ success: false, data: null, error: 'Issue not found', timestamp: new Date().toISOString() });
-           return res.json({ success: true, data: mapIssue(mockIssue), timestamp: new Date().toISOString() });
-         }
-         throw error;
+       const db = getAdminDb();
+       const doc = await db.collection('issues').doc(req.params.id).get();
+       
+       if (!doc.exists) {
+         return res.status(404).json({ success: false, data: null, error: 'Issue not found', timestamp: new Date().toISOString() });
        }
        
        return res.json({
          success: true,
-         data: mapIssue(data),
+         data: mapIssue({ id: doc.id, ...doc.data() }),
          timestamp: new Date().toISOString()
        });
      } catch(err) {
@@ -458,9 +430,14 @@ async function startServer() {
 
   app.get('/api/issues/:id/timeline', async (req, res) => {
      try {
-       const supabase = createServerSupabaseClient();
-       const { data, error } = await supabase.from('issue_timeline').select('*').eq('issue_id', req.params.id).order('created_at', { ascending: true });
-       if (error) throw error;
+       const db = getAdminDb();
+       const snapshot = await db.collection('issue_timeline')
+         .where('issue_id', '==', req.params.id)
+         .orderBy('created_at', 'asc')
+         .get();
+         
+       const data: any[] = [];
+       snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
        
        return res.json({
          success: true,
@@ -474,9 +451,13 @@ async function startServer() {
 
   app.get('/api/escalation-drafts', async (req, res) => {
      try {
-       const supabase = createServerSupabaseClient();
-       const { data, error } = await supabase.from('escalation_drafts').select('*').order('urgency_score', { ascending: false });
-       if (error) throw error;
+       const db = getAdminDb();
+       const snapshot = await db.collection('escalation_drafts')
+         .orderBy('urgency_score', 'desc')
+         .get();
+         
+       const data: any[] = [];
+       snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
        
        return res.json({
          success: true,
@@ -490,9 +471,8 @@ async function startServer() {
   
   app.patch('/api/escalation-drafts/:id/send', async (req, res) => {
      try {
-       const supabase = createServerSupabaseClient();
-       const { error } = await supabase.from('escalation_drafts').update({ status: 'sent' }).eq('id', req.params.id);
-       if (error) throw error;
+       const db = getAdminDb();
+       await db.collection('escalation_drafts').doc(req.params.id).update({ status: 'sent' });
        
        return res.json({
          success: true,
@@ -511,22 +491,18 @@ async function startServer() {
           return res.status(400).json({ success: false, data: null, error: 'Missing ward or dates', timestamp: new Date().toISOString() });
        }
        
-       const supabase = createServerSupabaseClient();
+       const db = getAdminDb();
        
-       const { data: issues, error } = await supabase.from('issues')
-          .select('*')
-          .eq('ward', ward)
-          .gte('created_at', weekStart)
-          .lte('created_at', weekEnd);
+       const snapshot = await db.collection('issues')
+          .where('ward', '==', ward)
+          .where('created_at', '>=', weekStart)
+          .where('created_at', '<=', weekEnd)
+          .get();
           
-       let safeIssues = issues || [];
-       if (error) {
-          if (error.code === 'PGRST205' || error.code === '42P01') {
-             safeIssues = ((global as any).mockIssues || []).filter((i: any) => i.ward === ward);
-          } else {
-             throw error;
-          }
-       }
+       let safeIssues: any[] = [];
+       snapshot.forEach(doc => {
+          safeIssues.push({ id: doc.id, ...doc.data() });
+       });
        
        const total = safeIssues.length;
        const resolved = safeIssues.filter(i => i.status === 'resolved' || i.status === 'closed').length;
@@ -568,13 +544,15 @@ async function startServer() {
        });
        
        // Upsert ward report
-       await supabase.from('ward_reports').upsert({
+       const reportRef = db.collection('ward_reports').doc(`${ward}-${weekStart}`);
+       await reportRef.set({
           ward,
           week_start: weekStart,
           week_end: weekEnd,
           report_content: analysis,
-          stats
-       });
+          stats,
+          created_at: new Date().toISOString()
+       }, { merge: true });
        
        return res.json({
          success: true,
@@ -589,23 +567,26 @@ async function startServer() {
   
   app.get('/api/dashboard', async (req, res) => {
      try {
-       const supabase = createServerSupabaseClient();
+       const db = getAdminDb();
        
-       const { data: healthData, error: healthError } = await supabase.from('city_health_scores').select('score').order('created_at', { ascending: false }).limit(1).single();
-       const healthScore = healthData?.score || 85;
+       const healthSnapshot = await db.collection('city_health_scores')
+         .orderBy('created_at', 'desc')
+         .limit(1)
+         .get();
+         
+       const healthScore = !healthSnapshot.empty ? healthSnapshot.docs[0].data().score : 85;
 
        const period = req.query.period as string || '30d';
        const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
        const since = new Date();
        since.setDate(since.getDate() - days);
        
-       const { data: issues, error: issuesError } = await supabase.from('issues').select('*').is('deleted_at', null).gte('created_at', since.toISOString());
-       let safeIssues = issues || [];
-       if (issuesError && (issuesError.code === 'PGRST205' || issuesError.code === '42P01')) {
-          safeIssues = ((global as any).mockIssues || []).filter((i: any) => new Date(i.created_at) >= since);
-       } else if (issuesError) {
-          throw issuesError;
-       }
+       const snapshot = await db.collection('issues')
+         .where('created_at', '>=', since.toISOString())
+         .get();
+         
+       let safeIssues: any[] = [];
+       snapshot.forEach(doc => safeIssues.push({ id: doc.id, ...doc.data() }));
        
        const totalOpen = safeIssues.filter(i => i.status !== 'resolved' && i.status !== 'closed').length;
        const totalResolved = safeIssues.filter(i => i.status === 'resolved' || i.status === 'closed').length;

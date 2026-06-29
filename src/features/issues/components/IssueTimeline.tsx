@@ -3,7 +3,8 @@ import { motion } from 'motion/react';
 import { Bot, User, Building, Settings } from 'lucide-react';
 import { useIssueTimeline } from '../hooks/useIssueTimeline';
 import { useEffect } from 'react';
-import { supabase } from '../../../lib/supabase/client';
+import { db } from '../../../lib/firebase/client';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -24,18 +25,11 @@ export function IssueTimeline({ issueId }: { issueId: string }) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const channel = supabase
-      .channel(`timeline-${issueId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'issue_timeline', filter: `issue_id=eq.${issueId}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['issueTimeline', issueId] });
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    const q = query(collection(db, 'issue_timeline'), where('issue_id', '==', issueId));
+    const unsubscribe = onSnapshot(q, () => {
+      queryClient.invalidateQueries({ queryKey: ['issueTimeline', issueId] });
+    });
+    return () => unsubscribe();
   }, [issueId, queryClient]);
 
   if (isLoading) return <div className="text-text-tertiary">Loading timeline...</div>;

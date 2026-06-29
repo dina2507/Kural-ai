@@ -7,7 +7,8 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
-import { supabase } from '@/lib/supabase/client';
+import { auth } from '@/lib/firebase/client';
+import { onAuthStateChanged } from 'firebase/auth';
 import { AppLayout } from '@/shared/components/AppLayout';
 import { LandingPage } from '@/pages/LandingPage';
 import { MapPage } from '@/pages/MapPage';
@@ -23,9 +24,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ? 'authenticated' : 'unauthenticated');
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setSession(user ? 'authenticated' : 'unauthenticated');
     });
+    return () => unsubscribe();
   }, []);
 
   if (session === 'loading') {
