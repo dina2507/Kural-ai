@@ -28,7 +28,7 @@ export function StaticMapPreview({ latitude, longitude }: StaticMapPreviewProps)
           <Map
             defaultCenter={position}
             defaultZoom={15}
-            mapId="ISSUE_DETAIL_STATIC_MAP"
+            mapId="DEMO_MAP_ID"
             disableDefaultUI={true}
             gestureHandling="none"
             internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}

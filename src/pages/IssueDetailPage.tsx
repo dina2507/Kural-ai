@@ -13,12 +13,14 @@ import { useUpvoteIssue } from '@/features/issues/hooks/useUpvoteIssue';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { KarmaChip } from '@/shared/components/KarmaChip';
+import { useReporterProfile } from '@/features/profile/hooks/useReporterProfile';
 
 export function IssueDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: issue, isLoading, error } = useIssue(id!);
   const { mutate: upvoteIssue, isPending: isUpvoting } = useUpvoteIssue();
+  const { data: reporterProfile } = useReporterProfile(issue?.reporterId);
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -80,7 +82,7 @@ export function IssueDetailPage() {
             <div className="flex flex-col gap-3 mb-6 pt-2">
               <div className="flex items-center gap-3 bg-bg-elevated p-3 rounded-lg w-fit pr-6">
                  <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">Reporter</span>
-                 {issue.reporterName ? <KarmaChip name={issue.reporterName} karma={0} /> : <span className="text-sm font-medium">Unknown Citizen</span>}
+                 {issue.reporterName ? <KarmaChip name={issue.reporterName} karma={reporterProfile?.karma || 0} avatarUrl={reporterProfile?.photo} /> : <span className="text-sm font-medium">Unknown Citizen</span>}
               </div>
               <div className="flex gap-4">
                 <div className="flex items-start gap-2 text-text-secondary text-sm">

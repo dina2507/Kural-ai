@@ -46,7 +46,7 @@ export function KuralMap() {
   const mapId =
     APP_CONFIG.maps.darkMapId && APP_CONFIG.maps.darkMapId !== 'YOUR_DARK_MAP_ID'
       ? APP_CONFIG.maps.darkMapId
-      : undefined;
+      : 'DEMO_MAP_ID';
 
   return (
     <div className="w-full h-full rounded-xl overflow-hidden relative">

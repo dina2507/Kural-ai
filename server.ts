@@ -116,6 +116,20 @@ async function startServer() {
     }
   });
 
+  app.get('/api/users/:id', async (req, res) => {
+    try {
+      if (req.params.id === 'me') return; // Handled above
+      const db = getDb();
+      const snap = await getDoc(doc(db, 'users', req.params.id));
+      if (!snap.exists()) {
+        return res.status(404).json({ success: false, data: null, error: 'User not found', timestamp: new Date().toISOString() });
+      }
+      return res.json({ success: true, data: { id: snap.id, ...snap.data() }, timestamp: new Date().toISOString() });
+    } catch (err) {
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
+  });
+
   app.post('/api/agents/vision', upload.single('image'), async (req, res) => {
     try {
       if (!req.file) {
@@ -633,7 +647,9 @@ async function startServer() {
         acc[id].count++;
         return acc;
       }, {} as Record<string, { userId: string; name: string; avatar: string; count: number }>);
-      const topReporters = Object.values(reporterMap).sort((a, b) => b.count - a.count).slice(0, 5);
+      const topReporters = (Object.values(reporterMap) as { userId: string; name: string; avatar: string; count: number }[])
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
 
       return res.json({
         success: true,
