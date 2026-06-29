@@ -14,6 +14,9 @@ import { createIssueSchema } from './src/lib/validators/issue.validator.js';
 import { runCivicMindAgent } from './src/ai/agents/civicMindAgent.js';
 import { runResolutionAgent } from './src/ai/agents/resolutionAgent.js';
 import { runDigestAgent } from './src/ai/agents/digestAgent.js';
+import { reverseGeocode } from './src/lib/utils/geocode.js';
+import { lookupAuthority } from './src/lib/authorities/directory.js';
+import { runAuthorityRouterAgent } from './src/ai/agents/authorityRouterAgent.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -515,6 +518,65 @@ async function startServer() {
       });
     } catch (err) {
       console.error('[Dashboard]', err);
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
+  });
+
+  app.get('/api/authority/resolve', async (req, res) => {
+    try {
+      const lat = parseFloat(String(req.query.lat));
+      const lng = parseFloat(String(req.query.lng));
+      const category = String(req.query.category || 'other');
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ success: false, data: null, error: 'Invalid coordinates', timestamp: new Date().toISOString() });
+      }
+
+      const geo = await reverseGeocode(lat, lng);
+      const locationLabel = geo?.formatted || `${lat}, ${lng}`;
+
+      // 1) Verified directory match
+      let entry = lookupAuthority(geo, category);
+      let resolvedVia = 'directory';
+      let verified = !!entry;
+
+      // 2) AI fallback — names the body (+ helpline only if confident). No auto-dial WhatsApp number.
+      if (!entry) {
+        try {
+          const ai = await runAuthorityRouterAgent({ category, location: geo || {} });
+          entry = {
+            name: ai.authorityName,
+            whatsapp: null,
+            helpline: ai.helpline,
+            categories: ['*'],
+            source: `AI-suggested (confidence ${Math.round(ai.confidence * 100)}%) — verify before relying`,
+          };
+          resolvedVia = 'ai';
+          verified = false;
+        } catch (_) { /* fall through */ }
+      }
+
+      // 3) Last-resort generic
+      if (!entry) {
+        entry = { name: 'Local Municipal Body', whatsapp: null, helpline: null, categories: ['*'], source: 'generic fallback' };
+        resolvedVia = 'fallback';
+        verified = false;
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          name: entry.name,
+          whatsapp: entry.whatsapp,
+          helpline: entry.helpline,
+          source: entry.source,
+          locationLabel,
+          resolvedVia,
+          verified,
+          geo,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
       return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
     }
   });

@@ -7,6 +7,7 @@ import { ResolutionSection } from '@/features/issues/components/ResolutionSectio
 import { IssueProgressIndicator } from '@/features/issues/components/IssueProgressIndicator';
 import { StaticMapPreview } from '@/features/issues/components/StaticMapPreview';
 import { ImageCarousel } from '@/features/issues/components/ImageCarousel';
+import { ReportToAuthorityButton } from '@/features/issues/components/ReportToAuthorityButton';
 import { MapPin, ArrowLeft, Share2, Bot, ThumbsUp, Clock } from 'lucide-react';
 import { useUpvoteIssue } from '@/features/issues/hooks/useUpvoteIssue';
 import { formatDistanceToNow } from 'date-fns';
@@ -135,6 +136,8 @@ export function IssueDetailPage() {
           <VerificationPanel issue={issue} />
           
           <ResolutionSection issue={issue} />
+
+          <ReportToAuthorityButton issue={issue} />
 
           <div className="bg-bg-surface p-6 rounded-xl border border-border">
             <h3 className="font-bold text-text-primary mb-6">Recent Activity</h3>
