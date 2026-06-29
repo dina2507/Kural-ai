@@ -2,6 +2,7 @@ import { getGeminiClient } from '../client';
 import { VISION_SYSTEM_PROMPT, buildVisionUserPrompt } from '../prompts/vision.prompt';
 import { visionOutputSchema, VisionAgentOutput } from '../schemas/visionOutput.schema';
 import { APP_CONFIG } from '../../lib/config';
+import { parseJsonFromMarkdown } from '../utils';
 
 interface VisionAgentInput {
   imageBase64: string;
@@ -17,7 +18,7 @@ export async function runVisionAgent(input: VisionAgentInput): Promise<VisionAge
   for (let attempt = 1; attempt <= APP_CONFIG.ai.maxRetries; attempt++) {
     try {
       const result = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: APP_CONFIG.ai.model,
         contents: [
           {
             role: 'user',
@@ -49,7 +50,7 @@ export async function runVisionAgent(input: VisionAgentInput): Promise<VisionAge
       if (!raw) {
          throw new Error("No text response from model");
       }
-      const parsed = JSON.parse(raw);
+      const parsed = parseJsonFromMarkdown(raw);
       return visionOutputSchema.parse(parsed);
 
     } catch (error) {

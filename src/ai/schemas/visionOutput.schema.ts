@@ -10,8 +10,8 @@ export const visionOutputSchema = z.object({
   tags: z.array(z.string()).max(10),
   riskFactors: z.array(z.string()).max(5),
   isDuplicate: z.boolean(),
-  duplicateId: z.string().uuid().nullable(),
-  dimensions: z.string().nullable(),
+  duplicateId: z.string().nullable().optional(),
+  dimensions: z.string().nullable().optional(),
   urgencyReasoning: z.string(),
 });
 

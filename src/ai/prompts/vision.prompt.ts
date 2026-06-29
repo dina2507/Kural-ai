@@ -47,7 +47,7 @@ Return a JSON object with exactly these fields:
   "tags": ["<tag1>", "<tag2>", "<tag3>"],
   "riskFactors": ["<risk1>", "<risk2>"],
   "isDuplicate": <boolean>,
-  "duplicateId": "<uuid or null>",
+  "duplicateId": "<string or null>",
   "dimensions": "<estimated size/extent if applicable, or null>",
   "urgencyReasoning": "<one sentence explaining the severity score>"
 }`;

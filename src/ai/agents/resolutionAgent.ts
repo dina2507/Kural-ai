@@ -2,6 +2,7 @@ import { getGeminiClient } from '../client';
 import { RESOLUTION_SYSTEM_PROMPT, buildResolutionUserPrompt } from '../prompts/resolution.prompt';
 import { resolutionOutputSchema, ResolutionAgentOutput } from '../schemas/resolutionOutput.schema';
 import { APP_CONFIG } from '../../lib/config';
+import { parseJsonFromMarkdown } from '../utils';
 
 interface ResolutionAgentInput {
   beforeImageBase64: string;
@@ -18,7 +19,7 @@ export async function runResolutionAgent(input: ResolutionAgentInput): Promise<R
   for (let attempt = 1; attempt <= APP_CONFIG.ai.maxRetries; attempt++) {
     try {
       const result = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: APP_CONFIG.ai.model,
         contents: [
           {
             role: 'user',
@@ -43,7 +44,7 @@ export async function runResolutionAgent(input: ResolutionAgentInput): Promise<R
       if (!raw) {
          throw new Error("No text response from model");
       }
-      const parsed = JSON.parse(raw);
+      const parsed = parseJsonFromMarkdown(raw);
       return resolutionOutputSchema.parse(parsed);
 
     } catch (error) {

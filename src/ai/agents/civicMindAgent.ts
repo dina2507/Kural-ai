@@ -2,6 +2,7 @@ import { getGeminiClient } from '../client';
 import { CIVIC_MIND_SYSTEM_PROMPT, buildCivicMindUserPrompt } from '../prompts/civicMind.prompt';
 import { civicMindOutputSchema, CivicMindOutput } from '../schemas/civicMindOutput.schema';
 import { APP_CONFIG } from '../../lib/config';
+import { parseJsonFromMarkdown } from '../utils';
 import type { Issue } from '../../features/issues/types/issue.types';
 
 export async function runCivicMindAgent(issues: Issue[]): Promise<CivicMindOutput> {
@@ -20,7 +21,7 @@ export async function runCivicMindAgent(issues: Issue[]): Promise<CivicMindOutpu
   }));
 
   const result = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: APP_CONFIG.ai.model,
     contents: [
       {
         role: 'user',
@@ -39,6 +40,6 @@ export async function runCivicMindAgent(issues: Issue[]): Promise<CivicMindOutpu
   if (!raw) {
     throw new Error('No text response from model');
   }
-  const parsed = JSON.parse(raw);
+  const parsed = parseJsonFromMarkdown(raw);
   return civicMindOutputSchema.parse(parsed);
 }

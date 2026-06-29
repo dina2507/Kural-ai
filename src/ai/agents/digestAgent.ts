@@ -2,12 +2,13 @@ import { getGeminiClient } from '../client';
 import { DIGEST_SYSTEM_PROMPT, buildDigestUserPrompt, DigestAgentInput } from '../prompts/digest.prompt';
 import { digestOutputSchema, DigestAgentOutput } from '../schemas/digestOutput.schema';
 import { APP_CONFIG } from '../../lib/config';
+import { parseJsonFromMarkdown } from '../utils';
 
 export async function runDigestAgent(input: DigestAgentInput): Promise<DigestAgentOutput> {
   const ai = getGeminiClient();
 
   const result = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: APP_CONFIG.ai.model,
     contents: [
       {
         role: 'user',
@@ -26,6 +27,6 @@ export async function runDigestAgent(input: DigestAgentInput): Promise<DigestAge
   if (!raw) {
     throw new Error('No text response from model');
   }
-  const parsed = JSON.parse(raw);
+  const parsed = parseJsonFromMarkdown(raw);
   return digestOutputSchema.parse(parsed);
 }
