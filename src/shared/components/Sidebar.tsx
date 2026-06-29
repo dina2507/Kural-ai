@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Map as MapIcon, PlusCircle, BarChart2, Bot, List, LogOut } from 'lucide-react';
+import { Home, Map as MapIcon, PlusCircle, BarChart2, Bot, List, LogOut, FileText, Trophy } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { APP_CONFIG } from '@/lib/config';
@@ -21,6 +21,8 @@ export function Sidebar({ className }: { className?: string }) {
     { name: 'Home', path: '/', icon: Home },
     { name: 'Map', path: '/map', icon: MapIcon },
     { name: 'Report', path: '/report', icon: PlusCircle },
+    { name: 'My Reports', path: '/my-reports', icon: FileText },
+    { name: 'Leaderboard', path: '/leaderboard', icon: Trophy },
     { name: 'Dashboard', path: '/dashboard', icon: BarChart2 },
     { name: 'Agent', path: '/agent', icon: Bot },
   ];

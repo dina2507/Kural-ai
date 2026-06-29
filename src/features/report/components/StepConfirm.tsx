@@ -4,38 +4,46 @@ import { useCreateIssue } from '../../issues/hooks/useCreateIssue';
 import { useNavigate } from 'react-router-dom';
 import { APP_CONFIG } from '../../../lib/config';
 import { Loader2 } from 'lucide-react';
+import { uploadIssueImage } from '../../../lib/firebase/upload';
 
 export function StepConfirm() {
   const { title, description, category, severity, updateForm, imagePreviewUrl, imageFile, location, analysis } = useReportWizard();
   const { mutate: createIssue, isPending } = useCreateIssue();
   const navigate = useNavigate();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    
-    // In a real app we'd upload the imageFile to Supabase Storage first and get URL
-    // For this prototype we will pass an empty array or placeholder since we don't have storage bucket set up yet
-    
-    createIssue({
-      title,
-      description,
-      category,
-      severity,
-      latitude: location?.lat || 0,
-      longitude: location?.lng || 0,
-      images: [], 
-      aiAnalysis: analysis || {},
-      aiTags: analysis?.tags || [],
-    }, {
-      onSuccess: (data) => {
-        navigate(`/issue/${data.id}`);
-      },
-      onError: (err) => {
-        setErrorMsg(err.message);
+
+    try {
+      let images: string[] = [];
+      if (imageFile) {
+        setIsUploading(true);
+        const url = await uploadIssueImage(imageFile);
+        images = [url];
+        setIsUploading(false);
       }
-    });
+
+      createIssue({
+        title,
+        description,
+        category,
+        severity,
+        latitude: location?.lat || 0,
+        longitude: location?.lng || 0,
+        images,
+        aiAnalysis: analysis || {},
+        aiTags: analysis?.tags || [],
+      }, {
+        onSuccess: (data) => navigate(`/issue/${data.id}`),
+        onError: (err) => setErrorMsg(err.message),
+      });
+    } catch (err) {
+      setIsUploading(false);
+      setErrorMsg(err instanceof Error ? err.message : 'Photo upload failed. Please try again.');
+    }
   };
 
   return (
@@ -109,13 +117,13 @@ export function StepConfirm() {
           </div>
         )}
         
-        <button 
+        <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || isUploading}
           className="w-full py-4 mt-4 bg-primary text-white font-medium rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-primary-light transition-colors"
         >
-          {isPending && <Loader2 className="w-5 h-5 animate-spin" />}
-          Submit Report
+          {(isPending || isUploading) && <Loader2 className="w-5 h-5 animate-spin" />}
+          {isUploading ? 'Uploading photo…' : isPending ? 'Submitting…' : 'Submit Report'}
         </button>
       </form>
     </div>

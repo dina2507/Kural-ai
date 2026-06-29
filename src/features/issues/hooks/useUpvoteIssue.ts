@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { parseApiError } from '@/lib/utils/errorParser';
+import { authedFetch } from '@/lib/api';
 
 export function useUpvoteIssue() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (issueId: string) => {
-      const res = await fetch(`/api/issues/${issueId}/upvote`, {
+      const res = await authedFetch(`/api/issues/${issueId}/upvote`, {
         method: 'POST',
       });
       if (!res.ok) {

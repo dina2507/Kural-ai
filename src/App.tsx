@@ -18,6 +18,8 @@ import { AgentPage } from '@/pages/AgentPage';
 import { IssuesPage } from '@/pages/IssuesPage';
 import { IssueDetailPage } from '@/pages/IssueDetailPage';
 import { AuthPage } from '@/pages/AuthPage';
+import { MyReportsPage } from '@/pages/MyReportsPage';
+import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { Toaster } from 'sonner';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -54,6 +56,8 @@ export default function App() {
             <Route path="agent" element={<ProtectedRoute><AgentPage /></ProtectedRoute>} />
             <Route path="issues" element={<ProtectedRoute><IssuesPage /></ProtectedRoute>} />
             <Route path="issue/:id" element={<ProtectedRoute><IssueDetailPage /></ProtectedRoute>} />
+            <Route path="my-reports" element={<ProtectedRoute><MyReportsPage /></ProtectedRoute>} />
+            <Route path="leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
           </Route>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

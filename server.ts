@@ -20,6 +20,15 @@ import { runAuthorityRouterAgent } from './src/ai/agents/authorityRouterAgent.js
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+function getUser(req: express.Request) {
+  return {
+    uid: (req.headers['x-user-id'] as string) || null,
+    email: (req.headers['x-user-email'] as string) || null,
+    name: (req.headers['x-user-name'] as string) || null,
+    photo: (req.headers['x-user-photo'] as string) || null,
+  };
+}
+
 function mapIssue(row: any) {
   if (!row) return row;
   return {
@@ -43,6 +52,7 @@ function mapIssue(row: any) {
     resolutionConfidence: row.resolution_confidence || null,
     resolutionReasoning: row.resolution_reasoning || null,
     reporterId: row.reporter_id || '',
+    reporterName: row.reporter_name || 'Citizen',
     upvotes: row.upvotes || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -58,6 +68,52 @@ async function startServer() {
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  app.post('/api/users/sync', async (req, res) => {
+    try {
+      const u = getUser(req);
+      if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Not signed in', timestamp: new Date().toISOString() });
+      const db = getDb();
+      const userRef = doc(db, 'users', u.uid);
+      const snap = await getDoc(userRef);
+      if (!snap.exists()) {
+        await setDoc(userRef, {
+          email: u.email, name: u.name || 'Citizen', photo: u.photo || null,
+          karma: 0, reports_count: 0, created_at: new Date().toISOString(),
+        });
+      } else {
+        await setDoc(userRef, { email: u.email, name: u.name || snap.data()?.name, photo: u.photo || snap.data()?.photo || null }, { merge: true });
+      }
+      return res.json({ success: true, data: { uid: u.uid }, timestamp: new Date().toISOString() });
+    } catch (err) {
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
+  });
+
+  app.get('/api/leaderboard', async (req, res) => {
+    try {
+      const db = getDb();
+      const snap = await getDocs(query(collection(db, 'users'), orderBy('karma', 'desc'), limit(20)));
+      const data: any[] = [];
+      snap.forEach((d) => data.push({ id: d.id, ...d.data() }));
+      return res.json({ success: true, data, timestamp: new Date().toISOString() });
+    } catch (err) {
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
+  });
+
+  app.get('/api/users/me', async (req, res) => {
+    try {
+      const u = getUser(req);
+      if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Not signed in', timestamp: new Date().toISOString() });
+      const db = getDb();
+      const snap = await getDoc(doc(db, 'users', u.uid));
+      const data = snap.exists() ? { id: snap.id, ...snap.data() } : { id: u.uid, name: u.name || 'Citizen', karma: 0, reports_count: 0 };
+      return res.json({ success: true, data, timestamp: new Date().toISOString() });
+    } catch (err) {
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
   });
 
   app.post('/api/agents/vision', upload.single('image'), async (req, res) => {
@@ -120,29 +176,49 @@ async function startServer() {
 
       const data = validation.data;
       const db = getDb();
-      const reporterId = req.headers['x-user-id'] || '00000000-0000-0000-0000-000000000000';
+      const u = getUser(req);
+      if (!u.uid) {
+        return res.status(401).json({ success: false, data: null, error: 'Please sign in to report an issue.', timestamp: new Date().toISOString() });
+      }
 
       const newIssue: any = {
-        title: data.title,
-        description: data.description,
-        category: data.category,
-        severity: data.severity,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        address: 'Address generated from lat/lng',
-        ward: 'Unknown Ward',
-        images: data.images,
-        ai_tags: data.aiTags,
-        ai_analysis: data.aiAnalysis,
-        reporter_id: reporterId,
-        status: 'ai_verified',
-        upvotes: 0,
-        confirmation_count: 0,
-        created_at: new Date().toISOString(),
+          title: data.title,
+          description: data.description,
+          category: data.category,
+          severity: data.severity,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          address: 'Address generated from lat/lng',
+          ward: 'Unknown Ward',
+          images: data.images,
+          ai_tags: data.aiTags,
+          ai_analysis: data.aiAnalysis,
+          reporter_id: u.uid,
+          reporter_name: u.name || 'Citizen',
+          status: 'ai_verified',
+          upvotes: 0,
+          confirmation_count: 0,
+          created_at: new Date().toISOString()
       };
 
       const docRef = await addDoc(collection(db, 'issues'), newIssue);
       newIssue.id = docRef.id;
+
+      // Award karma for reporting (+10) and bump the user's report count.
+      try {
+        const userRef = doc(db, 'users', u.uid);
+        await runTransaction(db, async (tx) => {
+          const us = await tx.get(userRef);
+          if (us.exists()) {
+            tx.update(userRef, {
+              karma: (us.data()?.karma || 0) + 10,
+              reports_count: (us.data()?.reports_count || 0) + 1,
+            });
+          } else {
+            tx.set(userRef, { email: u.email, name: u.name || 'Citizen', photo: u.photo || null, karma: 10, reports_count: 1, created_at: new Date().toISOString() });
+          }
+        });
+      } catch (_) { /* karma is best-effort */ }
 
       return res.json({ success: true, data: mapIssue(newIssue), timestamp: new Date().toISOString() });
     } catch (error) {
@@ -161,6 +237,9 @@ async function startServer() {
       if (req.query.category) {
         const cats = Array.isArray(req.query.category) ? req.query.category : [req.query.category];
         constraints.push(where('category', 'in', cats));
+      }
+      if (req.query.reporterId) {
+        constraints.push(where('reporter_id', '==', req.query.reporterId));
       }
 
       const ref = constraints.length ? query(collection(db, 'issues'), ...constraints) : collection(db, 'issues');
@@ -258,6 +337,20 @@ async function startServer() {
         updated_at: new Date().toISOString(),
       });
 
+        if (analysis.verified) {
+          try {
+            const issueSnap = await getDoc(doc(db, 'issues', issueId));
+            const reporterId = issueSnap.data()?.reporter_id;
+            if (reporterId) {
+              const rRef = doc(db, 'users', reporterId);
+              await runTransaction(db, async (tx) => {
+                const us = await tx.get(rRef);
+                if (us.exists()) tx.update(rRef, { karma: (us.data()?.karma || 0) + 30 });
+              });
+            }
+          } catch (_) {}
+        }
+
       await addDoc(collection(db, 'issue_timeline'), {
         issue_id: issueId,
         actor_type: 'ai_agent',
@@ -293,7 +386,9 @@ async function startServer() {
   app.post('/api/issues/:id/confirm', async (req, res) => {
     try {
       const issueId = req.params.id;
-      const userId = req.headers['x-user-id'] || '00000000-0000-0000-0000-000000000000';
+      const u = getUser(req);
+      if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Please sign in to confirm.', timestamp: new Date().toISOString() });
+      const userId = u.uid;
       const db = getDb();
       const issueRef = doc(db, 'issues', issueId);
 
@@ -319,6 +414,15 @@ async function startServer() {
         title: 'Confirmed by citizen',
         created_at: new Date().toISOString(),
       });
+
+      // Karma +5 for community confirmation (best-effort)
+      try {
+        const cRef = doc(db, 'users', userId);
+        await runTransaction(db, async (tx) => {
+          const us = await tx.get(cRef);
+          if (us.exists()) tx.update(cRef, { karma: (us.data()?.karma || 0) + 5 });
+        });
+      } catch (_) {}
 
       return res.json({ success: true, data: { confirmed: true }, timestamp: new Date().toISOString() });
     } catch (err) {
@@ -499,17 +603,37 @@ async function startServer() {
         }, {} as Record<string, { open: number; resolved: number }>)
       ).map(([ward, counts]: [string, any]) => ({ ward, open: counts.open, resolved: counts.resolved, score: 85 }));
 
-      const weeklyTrend = [
-        { week: 'Week -3', reported: 12, resolved: 8 },
-        { week: 'Week -2', reported: 15, resolved: 10 },
-        { week: 'Week -1', reported: 10, resolved: 14 },
-        { week: 'This Week', reported: 8, resolved: 12 },
-      ];
+      // Real 4-week trend (reported by created_at, resolved by resolved_at)
+      const trendSince = new Date();
+      trendSince.setDate(trendSince.getDate() - 28);
+      const trendSnap = await getDocs(query(collection(db, 'issues'), where('created_at', '>=', trendSince.toISOString())));
+      const trendIssues: any[] = [];
+      trendSnap.forEach((d) => trendIssues.push(d.data()));
 
-      const topReporters = [
-        { userId: '1', name: 'Priya R.', avatar: '', count: 5 },
-        { userId: '2', name: 'Arun K.', avatar: '', count: 3 },
-      ];
+      const now = Date.now();
+      const weeklyTrend = [3, 2, 1, 0].map((w) => {
+        const start = now - (w + 1) * 7 * 86400000;
+        const end = now - w * 7 * 86400000;
+        const reported = trendIssues.filter((i) => {
+          const t = new Date(i.created_at).getTime();
+          return t >= start && t < end;
+        }).length;
+        const resolved = trendIssues.filter((i) => {
+          const r = i.resolved_at ? new Date(i.resolved_at).getTime() : NaN;
+          return !isNaN(r) && r >= start && r < end;
+        }).length;
+        return { week: w === 0 ? 'This Week' : `Week -${w}`, reported, resolved };
+      });
+
+      // Real top reporters from the selected period
+      const reporterMap = safeIssues.reduce((acc, i) => {
+        const id = i.reporter_id || 'unknown';
+        if (id === '00000000-0000-0000-0000-000000000000' || id === 'unknown') return acc;
+        if (!acc[id]) acc[id] = { userId: id, name: i.reporter_name || 'Citizen', avatar: '', count: 0 };
+        acc[id].count++;
+        return acc;
+      }, {} as Record<string, { userId: string; name: string; avatar: string; count: number }>);
+      const topReporters = Object.values(reporterMap).sort((a, b) => b.count - a.count).slice(0, 5);
 
       return res.json({
         success: true,

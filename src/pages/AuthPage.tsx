@@ -2,18 +2,21 @@ import { motion } from 'motion/react';
 import { signInWithGoogle } from '@/lib/firebase/client';
 import { APP_CONFIG } from '@/lib/config';
 import { useNavigate } from 'react-router-dom';
+import { authedFetch } from '@/lib/api';
 
 export function AuthPage() {
   const navigate = useNavigate();
 
   const handleSignIn = async () => {
     const { error } = await signInWithGoogle();
-    
     if (error) {
       console.error('Error signing in:', error);
-    } else {
-      navigate('/dashboard');
+      return;
     }
+    try {
+      await authedFetch('/api/users/sync', { method: 'POST' });
+    } catch (_) { /* non-blocking */ }
+    navigate('/dashboard');
   };
 
   return (

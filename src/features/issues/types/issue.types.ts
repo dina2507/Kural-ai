@@ -28,6 +28,7 @@ export interface Issue {
   resolutionConfidence: number | null;
   resolutionReasoning: string | null;
   reporterId: string;
+  reporterName: string;
   upvotes: number;
   createdAt: string;
   updatedAt: string;
