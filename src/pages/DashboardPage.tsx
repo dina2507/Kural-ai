@@ -6,6 +6,7 @@ import { CategoryChart } from '@/features/dashboard/components/CategoryChart';
 import { TrendChart } from '@/features/dashboard/components/TrendChart';
 import { WardComparison } from '@/features/dashboard/components/WardComparison';
 import { TopReporters } from '@/features/dashboard/components/TopReporters';
+import { NotificationCenter } from '@/features/dashboard/components/NotificationCenter';
 
 export function DashboardPage() {
   const [period, setPeriod] = useState('30d');
@@ -71,6 +72,8 @@ export function DashboardPage() {
       </div>
 
       <TopReporters reporters={data.topReporters} />
+      
+      <NotificationCenter />
     </div>
   );
 }
