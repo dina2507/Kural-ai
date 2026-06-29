@@ -5,7 +5,7 @@ import { useMapStore } from '../../../store/mapStore';
 import { IssueInfoWindow } from './IssueInfoWindow';
 import { motion, AnimatePresence } from 'motion/react';
 
-export function IssueMarker({ issue }: { issue: Issue }) {
+export function IssueMarker({ issue }: { issue: Issue; key?: React.Key }) {
   const { selectedIssueId, setSelectedIssueId } = useMapStore();
   const isSelected = selectedIssueId === issue.id;
 

@@ -354,15 +354,32 @@ async function startServer() {
      try {
        const issueId = req.params.id;
        const userId = req.headers['x-user-id'] || '00000000-0000-0000-0000-000000000000';
-       
+
        const db = getAdminDb();
-       
-       await db.collection('issue_confirmations').add({
-          issue_id: issueId,
-          user_id: userId,
-          created_at: new Date().toISOString()
+       const issueRef = db.collection('issues').doc(issueId);
+
+       await db.runTransaction(async (tx) => {
+         const snap = await tx.get(issueRef);
+         if (!snap.exists) throw new Error('Issue not found');
+
+         const count = (snap.data()?.confirmation_count || 0) + 1;
+         const update: any = {
+           confirmation_count: count,
+           updated_at: new Date().toISOString(),
+         };
+         // Community threshold = 5 (APP_CONFIG.issues.communityThreshold).
+         if (count >= 5 && snap.data()?.status === 'ai_verified') {
+           update.status = 'community_verified';
+         }
+         tx.update(issueRef, update);
+
+         tx.set(db.collection('issue_confirmations').doc(), {
+           issue_id: issueId,
+           user_id: userId,
+           created_at: new Date().toISOString(),
+         });
        });
-       
+
        // Timeline
        await db.collection('issue_timeline').add({
            issue_id: issueId,
@@ -372,7 +389,7 @@ async function startServer() {
            title: 'Confirmed by citizen',
            created_at: new Date().toISOString()
        });
-       
+
        return res.json({
          success: true,
          data: { confirmed: true },
@@ -433,11 +450,11 @@ async function startServer() {
        const db = getAdminDb();
        const snapshot = await db.collection('issue_timeline')
          .where('issue_id', '==', req.params.id)
-         .orderBy('created_at', 'asc')
          .get();
          
        const data: any[] = [];
        snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
+       data.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
        
        return res.json({
          success: true,
@@ -495,13 +512,14 @@ async function startServer() {
        
        const snapshot = await db.collection('issues')
           .where('ward', '==', ward)
-          .where('created_at', '>=', weekStart)
-          .where('created_at', '<=', weekEnd)
           .get();
           
        let safeIssues: any[] = [];
        snapshot.forEach(doc => {
-          safeIssues.push({ id: doc.id, ...doc.data() });
+          const d = doc.data();
+          if (d.created_at >= weekStart && d.created_at <= weekEnd) {
+             safeIssues.push({ id: doc.id, ...d });
+          }
        });
        
        const total = safeIssues.length;

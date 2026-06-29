@@ -6,7 +6,7 @@ import { APP_CONFIG } from '../../../lib/config';
 import { IssueMarker } from './IssueMarker';
 import { HeatmapLayer } from './HeatmapLayer';
 import { db } from '../../../lib/firebase/client';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit, orderBy } from 'firebase/firestore';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -16,8 +16,10 @@ export function KuralMap() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const q = query(collection(db, 'issues'), limit(1));
+    const q = query(collection(db, 'issues'), orderBy('created_at', 'desc'), limit(1));
+    let isInitial = true;
     const unsubscribe = onSnapshot(q, () => {
+      if (isInitial) { isInitial = false; return; }
       queryClient.invalidateQueries({ queryKey: ['issues'] });
     });
     return () => unsubscribe();

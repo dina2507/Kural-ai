@@ -4,7 +4,7 @@ import { Issue } from '../types/issue.types';
 import { MapPin, Users, Activity } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export function IssueCard({ issue }: { issue: Issue }) {
+export function IssueCard({ issue }: { issue: Issue; key?: React.Key }) {
   const getSeverityColor = (severity: number) => {
     if (severity >= 9) return 'bg-danger';
     if (severity >= 7) return 'bg-warning';

@@ -8,25 +8,14 @@ import * as path from 'path';
 let adminApp;
 
 export function getAdminApp() {
-  if (!getApps().length) {
-    try {
-      const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const existing = getApps();
+  if (existing.length) return existing[0];
 
-      // If GOOGLE_APPLICATION_CREDENTIALS is set, it will automatically be used by default credential application.
-      // If not, we still need to initialize the app with the project config.
-      // Wait, in AI Studio, Application Default Credentials are provided.
-      adminApp = initializeApp({
-        projectId: config.projectId,
-      });
-    } catch (e) {
-      console.error('Error initializing Firebase Admin:', e);
-      adminApp = initializeApp();
-    }
-  } else {
-    adminApp = getApps()[0];
-  }
-  return adminApp;
+  const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  // AI Studio provides Application Default Credentials at runtime;
+  // we only need to pin the projectId.
+  return initializeApp({ projectId: config.projectId });
 }
 
 export function getAdminDb() {
