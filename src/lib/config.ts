@@ -50,6 +50,6 @@ export const APP_CONFIG = {
   },
 
   digest: {
-    defaultWard: 'Ward 76',
+    defaultWard: '',
   },
 } as const;

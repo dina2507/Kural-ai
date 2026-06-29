@@ -214,6 +214,10 @@ async function startServer() {
         return res.status(401).json({ success: false, data: null, error: 'Please sign in to report an issue.', timestamp: new Date().toISOString() });
       }
 
+      const geo = await reverseGeocode(data.latitude, data.longitude);
+      const resolvedWard = geo?.ward || geo?.locality || geo?.city || 'Unknown Ward';
+      const resolvedAddress = geo?.formatted || `${data.latitude}, ${data.longitude}`;
+
       const newIssue: any = {
           title: data.title,
           description: data.description,
@@ -221,8 +225,8 @@ async function startServer() {
           severity: data.severity,
           latitude: data.latitude,
           longitude: data.longitude,
-          address: 'Address generated from lat/lng',
-          ward: 'Unknown Ward',
+          address: resolvedAddress,
+          ward: resolvedWard,
           images: data.images,
           ai_tags: data.aiTags,
           ai_analysis: data.aiAnalysis,
@@ -344,22 +348,45 @@ async function startServer() {
         return res.status(400).json({ success: false, data: null, error: 'No image provided', timestamp: new Date().toISOString() });
       }
 
-      const { issueId, category, originalDescription, beforeImageBase64, beforeMimeType } = req.body;
-      if (!issueId || !beforeImageBase64) {
-        return res.status(400).json({ success: false, data: null, error: 'Missing issue data', timestamp: new Date().toISOString() });
+      const { issueId, category, originalDescription } = req.body;
+      if (!issueId) {
+        return res.status(400).json({ success: false, data: null, error: 'Missing issueId', timestamp: new Date().toISOString() });
+      }
+
+      const db = getDb();
+
+      // Use the issue's ORIGINAL stored photo as the "before" image (no client-supplied dummy).
+      const issueSnap0 = await getDoc(doc(db, 'issues', issueId));
+      if (!issueSnap0.exists()) {
+        return res.status(404).json({ success: false, data: null, error: 'Issue not found', timestamp: new Date().toISOString() });
+      }
+      const issueData0 = issueSnap0.data() as any;
+      const beforeUrl = (issueData0.images || [])[0];
+      if (!beforeUrl) {
+        return res.status(400).json({ success: false, data: null, error: 'This issue has no original photo to compare against.', timestamp: new Date().toISOString() });
+      }
+
+      let beforeImageBase64 = '';
+      let beforeMimeType = 'image/jpeg';
+      try {
+        const imgRes = await fetch(beforeUrl);
+        if (!imgRes.ok) throw new Error('image fetch failed');
+        beforeMimeType = imgRes.headers.get('content-type') || 'image/jpeg';
+        beforeImageBase64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+      } catch (_) {
+        return res.status(502).json({ success: false, data: null, error: 'Could not load the original photo for comparison.', timestamp: new Date().toISOString() });
       }
 
       const afterImageBase64 = req.file.buffer.toString('base64');
       const analysis = await runResolutionAgent({
         beforeImageBase64,
         afterImageBase64,
-        beforeMimeType: beforeMimeType || 'image/jpeg',
+        beforeMimeType,
         afterMimeType: req.file.mimetype,
-        category,
-        originalDescription,
+        category: category || issueData0.category,
+        originalDescription: originalDescription || issueData0.description,
       });
 
-      const db = getDb();
       const newStatus = analysis.verified ? 'resolved' : 'in_progress';
       await updateDoc(doc(db, 'issues', issueId), {
         resolution_verified: analysis.verified,
@@ -438,7 +465,7 @@ async function startServer() {
         const count = (snap.data()?.confirmation_count || 0) + 1;
         const update: any = { confirmation_count: count, updated_at: new Date().toISOString() };
         if (count >= 5 && snap.data()?.status === 'ai_verified') {
-          update.status = 'community_verified';
+          update.status = 'community_confirmed';
         }
         tx.update(issueRef, update);
         tx.set(doc(collection(db, 'issue_confirmations')), {
@@ -577,7 +604,11 @@ async function startServer() {
         ? Object.keys(categoryCounts).reduce((a, b) => (categoryCounts[a] > categoryCounts[b] ? a : b))
         : 'None';
 
-      const stats = { total, resolved, open, critical, resolutionRate, topCategory, avgResolutionDays: 3 };
+      const resolvedTimed = safeIssues.filter((i) => i.resolved_at && i.created_at);
+      const avgResolutionDays = resolvedTimed.length
+        ? Math.round(resolvedTimed.reduce((s, i) => s + (new Date(i.resolved_at).getTime() - new Date(i.created_at).getTime()) / 86400000, 0) / resolvedTimed.length)
+        : 0;
+      const stats = { total, resolved, open, critical, resolutionRate, topCategory, avgResolutionDays };
 
       const notableIssues = safeIssues.slice(0, 3).map((i) => ({
         title: i.title,
@@ -586,9 +617,24 @@ async function startServer() {
         daysOpen: Math.floor((new Date().getTime() - new Date(i.created_at).getTime()) / 86400000),
       }));
 
+      // Real citizen hero = top reporter in this ward/period
+      let citizenHero: { name: string; reportsCount: number; karma: number } | null = null;
+      const heroCounts = safeIssues.reduce((acc, i) => {
+        const id = i.reporter_id;
+        if (!id || id === '00000000-0000-0000-0000-000000000000') return acc;
+        acc[id] = (acc[id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      const heroId = Object.keys(heroCounts).sort((a, b) => heroCounts[b] - heroCounts[a])[0];
+      if (heroId) {
+        const heroSnap = await getDoc(doc(db, 'users', heroId));
+        const hd = heroSnap.data() as any;
+        citizenHero = { name: hd?.name || 'Citizen', reportsCount: heroCounts[heroId], karma: hd?.karma || 0 };
+      }
+
       const analysis = await runDigestAgent({
         ward, weekStart, weekEnd, stats,
-        citizenHero: { name: 'Priya R.', reportsCount: 5, karma: 150 },
+        citizenHero,
         notableIssues,
       });
 

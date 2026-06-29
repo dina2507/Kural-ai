@@ -19,8 +19,6 @@ export function ResolutionSection({ issue }: { issue: Issue }) {
       formData.append('issueId', issue.id);
       formData.append('category', issue.category);
       formData.append('originalDescription', issue.description);
-      // Pass a dummy or fetch real before image in real app
-      formData.append('beforeImageBase64', 'dummy_base64_for_now'); 
 
       const res = await fetch('/api/agents/resolution', {
         method: 'POST',

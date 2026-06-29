@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/shared/components/PageHeader';
 import { useHealthScore } from '@/features/agent/hooks/useHealthScore';
 import { useRunCivicMind } from '@/features/agent/hooks/useRunCivicMind';
@@ -17,11 +17,14 @@ export function AgentPage() {
   const { mutate: runCivicMind, isPending: isRunning, isSuccess } = useRunCivicMind();
   
   const { mutate: generateDigest, isPending: isGeneratingDigest, data: digestData } = useGenerateDigest();
-  const [selectedWard, setSelectedWard] = useState('Ward 76');
+  const [selectedWard, setSelectedWard] = useState('');
   
   const { data: allIssues = [] } = useIssues();
-  const availableWards = [...new Set(allIssues.map((i: any) => i.ward).filter(Boolean))];
-  if (!availableWards.includes('Ward 76')) availableWards.unshift('Ward 76'); // default
+  const availableWards = [...new Set(allIssues.map((i: any) => i.ward).filter(Boolean))] as string[];
+  
+  useEffect(() => {
+    if (!selectedWard && availableWards.length) setSelectedWard(availableWards[0]);
+  }, [availableWards, selectedWard]);
 
   const score = healthData?.score ?? 0;
   let scoreColor = 'text-success';
@@ -117,7 +120,7 @@ export function AgentPage() {
               </select>
               <button 
                  onClick={handleGenerateDigest}
-                 disabled={isGeneratingDigest}
+                 disabled={!selectedWard || isGeneratingDigest}
                  className="w-full sm:w-auto sm:ml-auto px-6 py-2 bg-bg-elevated hover:bg-bg-elevated/80 border border-border text-text-primary font-medium rounded-lg transition-colors"
               >
                  {isGeneratingDigest ? 'Generating...' : 'Generate Digest →'}
