@@ -64,16 +64,26 @@ function mapIssue(row: any) {
   };
 }
 
+import { auth } from './src/lib/firebase/client.js';
+import { signInAnonymously } from 'firebase/auth';
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  try {
+    await signInAnonymously(auth);
+    console.log('Server authenticated anonymously with Firebase');
+  } catch (err) {
+    console.error('Failed to authenticate server with Firebase:', err);
+  }
 
   app.use(helmet({ contentSecurityPolicy: false })); // disable CSP for MVP to avoid breaking Vite HMR
   app.use(cors());
   app.use(express.json({ limit: '10mb' }));
 
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), authUid: auth.currentUser?.uid || null });
   });
 
   app.post('/api/users/sync', async (req, res) => {
@@ -83,13 +93,18 @@ async function startServer() {
       const db = getDb();
       const userRef = doc(db, 'users', u.uid);
       const snap = await getDoc(userRef);
+      
+      const role = u.email === 'dinagar2505@gmail.com' ? 'admin' : 'citizen';
+      
       if (!snap.exists()) {
         await setDoc(userRef, {
           email: u.email, name: u.name || 'Citizen', photo: u.photo || null,
-          role: 'citizen', karma: 0, reports_count: 0, created_at: new Date().toISOString(),
+          role: role, karma: 0, reports_count: 0, created_at: new Date().toISOString(),
         });
       } else {
-        await setDoc(userRef, { email: u.email, name: u.name || snap.data()?.name, photo: u.photo || snap.data()?.photo || null }, { merge: true });
+        const existingRole = snap.data()?.role;
+        const newRole = u.email === 'dinagar2505@gmail.com' ? 'admin' : existingRole;
+        await setDoc(userRef, { email: u.email, name: u.name || snap.data()?.name, photo: u.photo || snap.data()?.photo || null, role: newRole }, { merge: true });
       }
       return res.json({ success: true, data: { uid: u.uid }, timestamp: new Date().toISOString() });
     } catch (err) {
