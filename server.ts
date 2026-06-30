@@ -530,6 +530,45 @@ async function startServer() {
     }
   });
 
+  app.post('/api/issues/:id/comments', async (req, res) => {
+    try {
+      const user = getUser(req);
+      if (!user.uid) {
+        return res.status(401).json({ success: false, data: null, error: 'Unauthorized', timestamp: new Date().toISOString() });
+      }
+      const userId = user.uid;
+
+      const { text } = req.body;
+      if (!text) {
+        return res.status(400).json({ success: false, data: null, error: 'Comment text is required', timestamp: new Date().toISOString() });
+      }
+
+      const db = getDb();
+      
+      const userSnap = await getDoc(doc(db, 'users', userId));
+      const userData = userSnap.data();
+      const role = userData?.role || 'citizen';
+      const actorType = role === 'official' || role === 'admin' ? 'municipality' : 'citizen';
+
+      await addDoc(collection(db, 'issue_timeline'), {
+        issue_id: req.params.id,
+        actor_type: actorType,
+        actor_id: userId,
+        agent_name: userData?.name || 'User',
+        event_type: 'comment',
+        title: 'Comment Added',
+        description: text,
+        metadata: {},
+        created_at: new Date().toISOString()
+      });
+
+      return res.json({ success: true, data: { status: 'added' }, timestamp: new Date().toISOString() });
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      return res.status(500).json({ success: false, data: null, error: 'Internal server error', timestamp: new Date().toISOString() });
+    }
+  });
+
   app.get('/api/issues/:id/timeline', async (req, res) => {
     try {
       const db = getDb();

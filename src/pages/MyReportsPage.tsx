@@ -2,7 +2,7 @@ import { PageHeader } from '@/shared/components/PageHeader';
 import { useMyReports } from '@/features/issues/hooks/useMyReports';
 import { IssueCard } from '@/features/issues/components/IssueCard';
 import { Link } from 'react-router-dom';
-import { FileText } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import PullToRefresh from 'react-simple-pull-to-refresh';
 
 export function MyReportsPage() {
@@ -12,9 +12,56 @@ export function MyReportsPage() {
     await refetch();
   };
 
+  const exportToCSV = () => {
+    if (!issues.length) return;
+
+    const headers = ['ID', 'Title', 'Category', 'Status', 'Severity', 'Address', 'Ward', 'Reported Date'];
+    
+    const rows = issues.map(issue => [
+      issue.id,
+      `"${(issue.title || '').replace(/"/g, '""')}"`,
+      issue.category,
+      issue.status,
+      issue.severity,
+      `"${(issue.address || '').replace(/"/g, '""')}"`,
+      `"${(issue.ward || '').replace(/"/g, '""')}"`,
+      new Date(issue.createdAt).toLocaleString()
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `my_reports_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="max-w-5xl mx-auto pb-20">
-      <PageHeader title="My Reports" subtitle="Issues you've reported." />
+      <PageHeader 
+        title="My Reports" 
+        subtitle="Issues you've reported." 
+        actions={
+          issues.length > 0 && (
+            <button 
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-bg-elevated hover:bg-bg-elevated/80 border border-border text-text-primary rounded-lg text-sm font-medium transition-colors"
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          )
+        }
+      />
       <PullToRefresh onRefresh={handleRefresh} className="min-h-[50vh]">
         {isLoading ? (
           <div className="text-center p-8 text-text-tertiary">Loading your reports…</div>
