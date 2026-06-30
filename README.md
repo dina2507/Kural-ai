@@ -1,20 +1,17 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# KURAL - Smart Civic Management Platform
 
-# Run and deploy your AI Studio app
+A modern civic platform to report, track, and resolve community issues seamlessly. KURAL bridges the gap between citizens and local authorities using AI.
 
-This contains everything you need to run your app locally.
+## Tech Stack
+*   **Frontend**: React 19, Vite, Tailwind CSS, shadcn/ui
+*   **Backend**: Node.js + Express (server.ts)
+*   **Database**: Firebase Firestore
+*   **Authentication**: Firebase Authentication
+*   **AI Engine**: Gemini 2.5 Flash
+*   **Maps**: Google Maps Platform (Maps JavaScript API, Places API, Geocoding API)
+*   **Hosting**: Google AI Studio (Cloud Run)
 
-View your app in AI Studio: https://ai.studio/apps/aeed6496-b874-4958-a9ef-e25def04ab5f
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Setup
+1. Define `GEMINI_API_KEY` and `VITE_GOOGLE_MAPS_API_KEY` in the AI Studio Secrets panel.
+2. The `VITE_APP_URL` is automatically injected at deploy time.
+3. Use the AI Studio Deploy functionality to publish to Cloud Run.

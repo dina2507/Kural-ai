@@ -5,10 +5,8 @@ export async function authedFetch(input: string, init: RequestInit = {}): Promis
   const user = auth.currentUser;
   const headers = new Headers(init.headers || {});
   if (user) {
-    headers.set('x-user-id', user.uid);
-    if (user.email) headers.set('x-user-email', user.email);
-    if (user.displayName) headers.set('x-user-name', user.displayName);
-    if (user.photoURL) headers.set('x-user-photo', user.photoURL);
+    const token = await user.getIdToken();
+    headers.set('Authorization', `Bearer ${token}`);
   }
   return fetch(input, { ...init, headers });
 }

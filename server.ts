@@ -1,13 +1,17 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import cors from 'cors';
 
 import multer from 'multer';
 import { runVisionAgent } from './src/ai/agents/visionAgent.js';
 import { getDb } from './src/lib/firebase/server.js';
+import { verifyIdToken } from './src/lib/firebase/verifyToken.js';
 import {
   collection, getDocs, getDoc, doc, addDoc, updateDoc, setDoc,
-  query, where, orderBy, limit, writeBatch, runTransaction,
+  query, where, orderBy, limit, writeBatch, runTransaction, startAfter
 } from 'firebase/firestore';
 import { createIssueSchema } from './src/lib/validators/issue.validator.js';
 
@@ -18,15 +22,15 @@ import { reverseGeocode } from './src/lib/utils/geocode.js';
 import { lookupAuthority } from './src/lib/authorities/directory.js';
 import { runAuthorityRouterAgent } from './src/ai/agents/authorityRouterAgent.js';
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+const aiLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true });
 
-function getUser(req: express.Request) {
-  return {
-    uid: (req.headers['x-user-id'] as string) || null,
-    email: (req.headers['x-user-email'] as string) || null,
-    name: (req.headers['x-user-name'] as string) || null,
-    photo: (req.headers['x-user-photo'] as string) || null,
-  };
+async function getUser(req: express.Request) {
+  const h = req.headers['authorization'] || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (!token) return { uid: null, email: null, name: null, photo: null };
+  try { return await verifyIdToken(token); }
+  catch { return { uid: null, email: null, name: null, photo: null }; }
 }
 
 function mapIssue(row: any) {
@@ -64,6 +68,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(helmet({ contentSecurityPolicy: false })); // disable CSP for MVP to avoid breaking Vite HMR
+  app.use(cors());
   app.use(express.json({ limit: '10mb' }));
 
   app.get('/api/health', (req, res) => {
@@ -72,7 +78,7 @@ async function startServer() {
 
   app.post('/api/users/sync', async (req, res) => {
     try {
-      const u = getUser(req);
+      const u = await getUser(req);
       if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Not signed in', timestamp: new Date().toISOString() });
       const db = getDb();
       const userRef = doc(db, 'users', u.uid);
@@ -105,7 +111,7 @@ async function startServer() {
 
   app.get('/api/users/me', async (req, res) => {
     try {
-      const u = getUser(req);
+      const u = await getUser(req);
       if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Not signed in', timestamp: new Date().toISOString() });
       const db = getDb();
       const snap = await getDoc(doc(db, 'users', u.uid));
@@ -118,7 +124,7 @@ async function startServer() {
 
   app.put('/api/users/me', async (req, res) => {
     try {
-      const u = getUser(req);
+      const u = await getUser(req);
       if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Not signed in', timestamp: new Date().toISOString() });
       const db = getDb();
       const userRef = doc(db, 'users', u.uid);
@@ -149,7 +155,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/agents/vision', upload.single('image'), async (req, res) => {
+  app.post('/api/agents/vision', aiLimiter, upload.single('image'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ success: false, data: null, error: 'No image provided', timestamp: new Date().toISOString() });
@@ -209,7 +215,7 @@ async function startServer() {
 
       const data = validation.data;
       const db = getDb();
-      const u = getUser(req);
+      const u = await getUser(req);
       if (!u.uid) {
         return res.status(401).json({ success: false, data: null, error: 'Please sign in to report an issue.', timestamp: new Date().toISOString() });
       }
@@ -279,20 +285,33 @@ async function startServer() {
         constraints.push(where('reporter_id', '==', req.query.reporterId));
       }
 
-      const ref = constraints.length ? query(collection(db, 'issues'), ...constraints) : collection(db, 'issues');
+      constraints.push(orderBy('created_at', 'desc'));
+
+      const limitNum = parseInt((req.query.limit as string) || '30', 10);
+      constraints.push(limit(limitNum));
+
+      if (req.query.cursor) {
+        const docSnap = await getDoc(doc(db, 'issues', req.query.cursor as string));
+        if (docSnap.exists()) {
+          constraints.push(startAfter(docSnap));
+        }
+      }
+
+      const ref = query(collection(db, 'issues'), ...constraints);
       const snapshot = await getDocs(ref);
 
       let finalData: any[] = [];
       snapshot.forEach((d) => finalData.push({ id: d.id, ...d.data() }));
-      finalData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      return res.json({ success: true, data: finalData.map(mapIssue), timestamp: new Date().toISOString() });
+      const nextCursor = finalData.length === limitNum ? finalData[finalData.length - 1].id : null;
+
+      return res.json({ success: true, data: finalData.map(mapIssue), nextCursor, timestamp: new Date().toISOString() });
     } catch (err) {
       return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
     }
   });
 
-  app.post('/api/agents/civic-mind', async (req, res) => {
+  app.post('/api/agents/civic-mind', aiLimiter, async (req, res) => {
     try {
       const db = getDb();
       const thirtyDaysAgo = new Date();
@@ -342,7 +361,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/agents/resolution', upload.single('afterImage'), async (req, res) => {
+  app.post('/api/agents/resolution', aiLimiter, upload.single('afterImage'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ success: false, data: null, error: 'No image provided', timestamp: new Date().toISOString() });
@@ -453,7 +472,7 @@ async function startServer() {
   app.post('/api/issues/:id/confirm', async (req, res) => {
     try {
       const issueId = req.params.id;
-      const u = getUser(req);
+      const u = await getUser(req);
       if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Please sign in to confirm.', timestamp: new Date().toISOString() });
       const userId = u.uid;
       const db = getDb();
@@ -532,7 +551,7 @@ async function startServer() {
 
   app.post('/api/issues/:id/comments', async (req, res) => {
     try {
-      const user = getUser(req);
+      const user = await getUser(req);
       if (!user.uid) {
         return res.status(401).json({ success: false, data: null, error: 'Unauthorized', timestamp: new Date().toISOString() });
       }
@@ -608,7 +627,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/agents/digest', async (req, res) => {
+  app.post('/api/agents/digest', aiLimiter, async (req, res) => {
     try {
       const { ward, weekStart, weekEnd } = req.body;
       if (!ward || !weekStart || !weekEnd) {
@@ -694,7 +713,7 @@ async function startServer() {
     try {
       const db = getDb();
       
-      const allIssuesSnapshot = await getDocs(collection(db, 'issues'));
+      const allIssuesSnapshot = await getDocs(query(collection(db, 'issues'), limit(100)));
       let allIssues: any[] = [];
       allIssuesSnapshot.forEach(d => allIssues.push(d.data()));
       const globalOpen = allIssues.filter(i => i.status !== 'resolved' && i.status !== 'closed').length;
@@ -711,7 +730,7 @@ async function startServer() {
       since.setDate(since.getDate() - days);
 
       const snapshot = await getDocs(
-        query(collection(db, 'issues'), where('created_at', '>=', since.toISOString()))
+        query(collection(db, 'issues'), where('created_at', '>=', since.toISOString()), limit(100))
       );
 
       let safeIssues: any[] = [];
@@ -856,7 +875,7 @@ async function startServer() {
 
   app.patch('/api/issues/:id/status', async (req, res) => {
     try {
-      const u = getUser(req);
+      const u = await getUser(req);
       if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Please sign in.', timestamp: new Date().toISOString() });
 
       const db = getDb();
@@ -911,6 +930,28 @@ async function startServer() {
       }
 
       return res.json({ success: true, data: { status }, timestamp: new Date().toISOString() });
+    } catch (err) {
+      return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
+    }
+  });
+
+  app.post('/api/admin/grant-role', async (req, res) => {
+    try {
+      const u = await getUser(req);
+      if (!u.uid) return res.status(401).json({ success: false, data: null, error: 'Unauthorized', timestamp: new Date().toISOString() });
+      const db = getDb();
+      const adminSnap = await getDoc(doc(db, 'users', u.uid));
+      if (!adminSnap.exists() || adminSnap.data()?.role !== 'admin') {
+        return res.status(403).json({ success: false, data: null, error: 'Forbidden', timestamp: new Date().toISOString() });
+      }
+
+      const { targetUid, role } = req.body;
+      if (!targetUid || !['citizen', 'official', 'admin'].includes(role)) {
+        return res.status(400).json({ success: false, data: null, error: 'Invalid parameters', timestamp: new Date().toISOString() });
+      }
+
+      await updateDoc(doc(db, 'users', targetUid), { role });
+      return res.json({ success: true, data: { role }, timestamp: new Date().toISOString() });
     } catch (err) {
       return res.status(500).json({ success: false, data: null, error: err instanceof Error ? err.message : 'Server error', timestamp: new Date().toISOString() });
     }
